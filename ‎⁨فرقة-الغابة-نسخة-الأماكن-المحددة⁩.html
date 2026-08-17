@@ -552,7 +552,7 @@ function areAllies(a,b){
 }
 
 function findTarget(u){
-  const AG=u.T.wild?120:AGGRO;
+  const AG=u.T.wild?1e6:AGGRO;
   let best=null, bd=AG*AG;
   for(const e of G.units){
     if(e.dead||areAllies(u.T,e.T)) continue;
@@ -610,7 +610,7 @@ function updateUnits(dt){
     // اختيار هدف
     if(u.re<=0||!u.tgt||u.tgt.dead){ u.tgt=findTarget(u); u.re=.35+rnd(0,.25); }
     const anchorX=u.T.wild?u.ax:u.T.x, anchorY=u.T.wild?u.ay:u.T.y;
-    const leash=u.T.wild?95:LEASH;
+    const leash=u.T.wild?1e6:LEASH;
     let dx=0,dy=0,desired=null;
 
     // الطبيبة تداوي
