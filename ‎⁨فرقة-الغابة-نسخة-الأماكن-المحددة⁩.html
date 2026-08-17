@@ -89,6 +89,9 @@
   body.coop .netPill{display:block}
   body:not(.coop) .coopHud{display:none}
   body.coop .board{display:none}
+  body.coop.pvp .coopHud{display:none}
+  body.coop.pvp .board{display:block}
+  .duelbtn{background:linear-gradient(180deg,#ff8a65,#ef5350)!important}
   .heroList{max-height:56vh;overflow:auto;text-align:right;margin:8px 0}
   .hero{display:flex;gap:10px;align-items:center;background:rgba(255,255,255,.07);
     border-radius:14px;padding:8px 10px;margin-bottom:7px}
@@ -150,6 +153,7 @@
     </div>
     <button class="btn" id="play">🕹️ لعب فردي</button>
     <button class="btn coopbtn" id="playCoop">👥 لعب مع صديقي (PvE أونلاين)</button>
+    <button class="btn duelbtn" id="playDuel">⚔️ مبارزة 1vs1 (PvP أونلاين)</button>
     <button class="btn pvebtn" id="playPve">🛡️ PvE مع رفيق آلي (بدون نت)</button>
     <div class="netmsg" id="netMsg"></div>
     <div class="hint">لعبة مستوحاة من ألعاب جمع الفرق — شخصياتها وتصميمها أصلية.<br>على الكمبيوتر: أسهم/WASD للحركة، مسافة للاندفاع.</div>
@@ -269,6 +273,13 @@ const COOP_TEAMS=[
   {n:'صديقك',    c:'#4dd0e1', coop:true},
 ];
 const COOP_MATCH=300, COOP_TARGET=1200, COOP_LIVES=12, WAVE_EVERY=10, WILD_CAP=150, BOSS_AT=210;
+const DUEL_TEAMS=[
+  {n:'البرية',   c:'#795548', wild:true},
+  {n:'أنت',      c:'#ffffff', player:true, coop:true},
+  {n:'الخصم',    c:'#ff7043', coop:true},
+];
+const DUEL_MATCH=150;
+const BUILDING_HP=2000;
 
 const HERO_KEYS=['fighter','archer','giant','healer','miner','mage','scout','bomber','collect','knight','druid','samurai'];
 
@@ -322,21 +333,22 @@ let MYTEAM=1;      // رقم فريقي (٢ إذا كنت الضيف بالتع�
 
 function newGame(mode,seed){
   MODE=mode||'solo';
-  const coop=MODE==='coop';
+  const pvp=MODE==='duel';
+  const coop=MODE==='coop'||pvp;
   seed=seed||((Math.random()*1e9)>>>0);
-  G={t:0,time:coop?COOP_MATCH:MATCH,uid:1,teams:[],units:[],res:[],chests:[],gems:[],shots:[],fx:[],
+  G={t:0,time:pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH),uid:1,teams:[],units:[],res:[],chests:[],gems:[],shots:[],fx:[],
      nextChest:1.5,over:false,frenzy:0,mark:null,chestTurn:0,evQ:[],seed,
-     coop,wave:0,waveT:4,boss:null,bossArena:null,bossSpawned:false,bossDown:false,lives:COOP_LIVES,won:false,shared:0,target:COOP_TARGET};
+     coop,pvp,wave:0,waveT:4,boss:null,bossArena:null,bossSpawned:false,bossDown:false,lives:COOP_LIVES,won:false,shared:0,target:COOP_TARGET};
   seedRNG(seed);
   // الأحداث العشوائية (نفسها للاثنين لأن البذرة موحّدة)
   {
     const keys=['rain','wave','mega','frenzy'];
     for(let i=keys.length-1;i>0;i--){ const j=Math.floor(RND()*(i+1)); [keys[i],keys[j]]=[keys[j],keys[i]]; }
-    const base=coop?COOP_MATCH:MATCH;
+    const base=pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH);
     const slots=[base-rnd(45,55),base-rnd(95,110),base-rnd(145,165)];
     G.evQ=slots.map((at,i)=>({at,k:keys[i]}));
   }
-  (coop?COOP_TEAMS:TEAMS).forEach((d,i)=>{
+  (pvp?DUEL_TEAMS:(coop?COOP_TEAMS:TEAMS)).forEach((d,i)=>{
     G.teams.push({i,n:d.n,c:d.c,wild:!!d.wild,player:!!d.player,coop:!!d.coop,gems:0,units:[],
       x:0,y:0,gx:0,gy:0,dead:false,resp:0,dash:0,dashCd:0,think:0,move:0});
   });
@@ -350,7 +362,9 @@ function newGame(mode,seed){
   }
   unseedRNG();
   if(coop){ G.teams[MYTEAM].player=true; for(let i=1;i<G.teams.length;i++) if(i!==MYTEAM) G.teams[i].player=false; }
+  G.building=(coop&&!pvp)?{x:ISL.cx,y:ISL.cy,hp:BUILDING_HP,max:BUILDING_HP,size:60,dead:false,isBuilding:true}:null;
   document.body.classList.toggle('coop',coop);
+  document.body.classList.toggle('pvp',pvp);
   updateSquadBar(true); updateBoard(true);
 }
 
@@ -533,6 +547,7 @@ function power(T){ let p=0; for(const u of T.units) if(!u.dead) p+=u.hp*.35+u.dm
 function areAllies(a,b){
   if(!a||!b) return false;
   if(a===b) return true;
+  if(G&&G.pvp) return false;
   return !!(G&&G.coop&&a.coop&&b.coop);
 }
 
@@ -546,6 +561,10 @@ function findTarget(u){
     if(d<bd){ bd=d; best=e; }
   }
   if(best) return best;
+  if(u.T.wild&&G.building&&!G.building.dead){
+    const d=(G.building.x-u.x)**2+(G.building.y-u.y)**2;
+    if(d<bd) return G.building;
+  }
   if(!u.T.wild){
     for(const r of G.res){
       if(r.dead) continue;
@@ -559,7 +578,7 @@ function findTarget(u){
 function hurt(e,dmg,src){
   if(src&&src.T&&e.T&&areAllies(src.T,e.T)) return;
   e.hp-=dmg; e.hitT=.14;
-  fxHit(e.x,e.y, e.isRes? (e.kind==='rock'?'#bdbdbd':'#8bc34a') : '#fff');
+  fxHit(e.x,e.y, e.isRes? (e.kind==='rock'?'#bdbdbd':'#8bc34a') : (e.isBuilding?'#ffb300':'#fff'));
   if(e.hp<=0){
     if(e.isRes){
       e.dead=true;
@@ -567,8 +586,16 @@ function hurt(e,dmg,src){
       n=Math.round(n*gemMul());
       dropGems(e.x,e.y,n);
       if(src&&src.T&&src.T.player) beep(300+rnd(0,120),.06,'square',.035);
+    } else if(e.isBuilding){
+      e.hp=0; e.dead=true; buildingDestroyed();
     } else killUnit(e);
   }
+}
+
+function buildingDestroyed(){
+  if(!G||G.over) return;
+  announce('🏚️ دُمِّر المبنى!','فشلت المهمة — احموا المبنى في المرة القادمة');
+  G.won=false; endMatch();
 }
 function countBonus(T){ let b=0; for(const u of T.units) if(!u.dead&&TYPES[u.type].bonus) b+=TYPES[u.type].bonus*u.lvl; return Math.min(b,4); }
 
@@ -766,7 +793,7 @@ function updateTeams(dt){
     }
     if(alive.length===0){
       T.dead=true; T.resp=G.coop?2:2.5;
-      if(G.coop){
+      if(G.coop&&!G.pvp){
         G.lives--;
         announce('💀 سقطت '+T.n,'بقي '+Math.max(0,G.lives)+' أرواح للفريق');
         if(G.lives<=0&&!G.over){ G.won=false; endMatch(); return; }
@@ -1038,6 +1065,7 @@ function spawnBoss(){
 }
 
 function updateCoop(dt){
+  if(G.pvp) return;
   G.shared=G.teams.reduce((s,T)=>s+(T.coop?T.gems:0),0);
   if(G.boss&&G.boss.dead){ G.boss=null; G.bossArena=null; G.bossDown=true;
     announce('💥 سقط الزعيم!','استمروا بقتل الموجات وجمع الجواهر'); }
@@ -1136,6 +1164,22 @@ function draw(){
     ctx.globalAlpha=.07;
     ctx.fillStyle='#ff5252';
     ctx.beginPath(); ctx.arc(A.x,A.y,A.r,0,TAU); ctx.fill();
+    ctx.restore();
+  }
+
+  // المبنى الذي يحميه فريق التعاون من هجمات الوحوش.
+  if(G.building&&!G.building.dead&&vis(G.building.x,G.building.y,90)){
+    const b=G.building;
+    ctx.save();
+    ctx.translate(b.x,b.y);
+    ctx.fillStyle='#6d4c41';
+    ctx.beginPath(); ctx.roundRect(-38,-46,76,60,10); ctx.fill();
+    ctx.fillStyle='#8d6e63';
+    ctx.beginPath(); ctx.moveTo(-44,-46); ctx.lineTo(0,-78); ctx.lineTo(44,-46); ctx.closePath(); ctx.fill();
+    ctx.font='34px system-ui'; ctx.textAlign='center'; ctx.fillText('🏰',0,-6);
+    const p=Math.max(0,b.hp/b.max);
+    ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(-40,-96,80,10);
+    ctx.fillStyle=p>.4?'#8bc34a':'#ff5252'; ctx.fillRect(-38,-94,76*p,6);
     ctx.restore();
   }
 
@@ -1535,13 +1579,13 @@ function updateHud(dt){
   const sm=elTimer.querySelector('small');
   if(sm) sm.textContent = G.time<=TURBO? 'توربو ×2' : 'الوقت';
   const T=ME();
-  elGems.firstChild.nodeValue=String(G.coop?G.shared:T.gems);
+  elGems.firstChild.nodeValue=String((G.coop&&!G.pvp)?G.shared:T.gems);
   const gs=elGems.querySelector('small');
-  if(gs) gs.textContent=G.coop?('من '+G.target):'جواهر';
+  if(gs) gs.textContent=(G.coop&&!G.pvp)?('من '+G.target):'جواهر';
   dashBtn.classList.toggle('cool',T.dashCd>0);
   dashBtn.lastChild.nodeValue=T.dashCd>0?Math.ceil(T.dashCd)+'ث':'اندفاع';
   updateSquadBar(); updateBoard();
-  if(G.coop) updateCoopHud();
+  if(G.coop&&!G.pvp) updateCoopHud();
 }
 
 function updateCoopHud(){
@@ -1551,7 +1595,8 @@ function updateCoopHud(){
     '<div class="crow">🌊 الموجة '+G.wave+'</div>'+
     '<div class="crow">'+'❤️'.repeat(Math.max(0,G.lives))+'</div>'+
     (b? '<div class="bossbar"><i style="width:'+Math.max(0,Math.round(b.hp/b.max*100))+'%"></i></div><div class="crow">🐲 زعيم الغابة</div>'
-      : (G.bossDown?'<div class="crow ok">✅ الزعيم سقط</div>':''));
+      : (G.bossDown?'<div class="crow ok">✅ الزعيم سقط</div>':''))+
+    (G.building? '<div class="bossbar"><i style="width:'+Math.max(0,Math.round(G.building.hp/G.building.max*100))+'%;background:linear-gradient(90deg,#ffb300,#ffd54f)"></i></div><div class="crow'+(G.building.dead?'':'')+'">🏰 المبنى</div>' : '');
 }
 
 function updateSquadBar(force){
@@ -1568,7 +1613,7 @@ function updateSquadBar(force){
 
 function updateBoard(force){
   const list=G.teams.slice(1).map((T,i)=>({n:T.n,g:T.gems,c:T.c,me:(i+1)===MYTEAM}))
-    .sort((a,b)=>G.coop?0:b.g-a.g);
+    .sort((a,b)=>(G.coop&&!G.pvp)?0:b.g-a.g);
   const sig=list.map(l=>l.n+l.g).join('|');
   if(sig===lastBoardSig&&!force) return; lastBoardSig=sig;
   elBoard.innerHTML=list.map((l,i)=>'<div class="row'+(l.me?' me':'')+'"><span>'+(i+1)+'. '+
@@ -1577,7 +1622,7 @@ function updateBoard(force){
 
 function endMatch(){
   if(G.over) return; G.over=true; running=false;
-  if(G.coop){
+  if(G.coop&&!G.pvp){
     if(NET.on&&NET.role==='host') netSend('end',{won:!!G.won});
     const win=!!G.won;
     elTitle.innerHTML=(win?'انتصرتم! 🏆':'انتهت المهمة 💀')+
@@ -1672,7 +1717,7 @@ async function netConnect(roomCode, desiredRole){
     if(NET.role!=='host' && NET.role!=='guest') NET.role=first?'host':'guest';
     if(NET.role==='guest') MYTEAM=2; else if(NET.role==='host') MYTEAM=1;
     netStatus(NET.peerOn?(first?'أنت المضيف · صديقك متصل':'متصل مع صديقك'):'الغرفة جاهزة · بانتظار صديقك...');
-    if(NET.role==='host'&&G&&G.coop&&running) netSend('seed',{seed:G.seed,time:G.time});
+    if(NET.role==='host'&&G&&G.coop&&running) netSend('seed',{seed:G.seed,time:G.time,mode:MODE});
   };
 
   const handleBroadcast=(payload)=>{
@@ -1695,7 +1740,7 @@ async function netConnect(roomCode, desiredRole){
     if(evn==='seed'){
       if(NET.role!=='guest') return;
       if(!G||!G.coop||G.seed!==data.seed){
-        MYTEAM=2; newGame('coop',data.seed); running=true; last=performance.now(); acc=0;
+        MYTEAM=2; newGame(data.mode||'coop',data.seed); running=true; last=performance.now(); acc=0;
         elStart.classList.add('hide'); elEnd.classList.add('hide');
       }
       return;
@@ -1833,13 +1878,15 @@ function makeSnap(){
   const GM=G.gems.map(g=>[Math.round(g.x),Math.round(g.y)]);
   const RS=[]; G.res.forEach((r,i)=>{ if(r.dead||r.hp<r.max) RS.push([i,r.dead?1:0,Math.round(r.hp)]); });
   return {t:Math.round(G.time*10),w:G.wave,l:G.lives,sh:G.shared,bd:G.bossDown?1:0,
-          bh:G.boss?Math.round(G.boss.hp):0,bm:G.boss?Math.round(G.boss.max):0,U,TS,CH,GM,RS};
+          bh:G.boss?Math.round(G.boss.hp):0,bm:G.boss?Math.round(G.boss.max):0,
+          gh:G.building?Math.round(G.building.hp):0,gd:G.building&&G.building.dead?1:0,U,TS,CH,GM,RS};
 }
 const SNAPKEY=[...HERO_KEYS,'','','','','','','','','','','','slime','brute','boss','wolf','shaman','titan'];
 function applySnap(s){
   if(!G||!G.coop) return;
   G.time=s.t/10; G.wave=s.w; G.lives=s.l; G.shared=s.sh; G.bossDown=!!s.bd;
   G.netBoss=s.bm?{hp:s.bh,max:s.bm}:null;
+  if(G.building&&s.gh!==undefined){ G.building.hp=s.gh; G.building.dead=!!s.gd; }
   s.TS.forEach((d,i)=>{ const T=G.teams[i+1]; if(!T) return;
     T.nx=d[0]; T.ny=d[1]; T.gems=d[2]; T.dead=!!d[3]; T.dashCd=d[4]/10;
     if(T.x===0&&T.y===0){ T.x=d[0]; T.y=d[1]; } });
@@ -2058,7 +2105,8 @@ function showRoomDialog(){
   });
 }
 
-async function startOnlineRoom(choice){
+async function startOnlineRoom(choice,gameMode){
+  gameMode=gameMode||'coop';
   audioOn();
   if(!choice) return;
   if(choice.join) choice={mode:'guest',code:choice.join};
@@ -2075,8 +2123,8 @@ async function startOnlineRoom(choice){
       if(ROOM_HEART) clearInterval(ROOM_HEART); ROOM_HEART=setInterval(()=>saveRoomHeartbeat(code),5000);
       netMsg.innerHTML='غرفتك: <b style="font-size:22px;letter-spacing:4px">'+code+'</b><br><span style="opacity:.8">أصدقاؤك سيرون هذه الغرفة تلقائيًا.</span>';
       const s=(Math.random()*1e9)>>>0;
-      netSend('seed',{seed:s});
-      start('coop',s);
+      netSend('seed',{seed:s,mode:gameMode});
+      start(gameMode,s);
     }else{
       netMsg.innerHTML='متصل بالغرفة <b style="font-size:22px;letter-spacing:4px">'+code+'</b><br><span style="opacity:.8">بانتظار المضيف...</span>';
     }
@@ -2101,7 +2149,16 @@ document.getElementById('playCoop').addEventListener('click',async ()=>{
     return;
   }
   const choice=await showRoomDialog();
-  await startOnlineRoom(choice);
+  await startOnlineRoom(choice,'coop');
+});
+
+document.getElementById('playDuel').addEventListener('click',async ()=>{
+  if(NET.on){
+    netMsg.textContent='أنت متصل بالغرفة الحالية.';
+    return;
+  }
+  const choice=await showRoomDialog();
+  await startOnlineRoom(choice,'duel');
 });
 
 // ─────────── لوحة خصائص الأبطال ───────────
