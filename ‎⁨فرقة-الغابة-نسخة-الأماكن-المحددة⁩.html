@@ -409,14 +409,16 @@ function buildWorld(){
     G.decor.push({x:dx0,y:dy0,spr:d[0],h:d[1]*rnd(.85,1.2),
       face:RND()<.5?-1:1, back:d[0]==='dirt'});
   }
-  const FIXED_CHESTS=[
-[420,420],[760,420],[1120,420],[1480,420],[1840,420],[2180,420],[2600,520],
-[520,860],[920,820],[1360,900],[1760,820],[2240,900],[2780,900],
-[420,1320],[820,1260],[1240,1380],[1680,1280],[2120,1360],[2600,1320],
-[620,1780],[1080,1840],[1500,1760],[1960,1860],[2420,1780],[2820,1920],
-[520,2320],[980,2400],[1460,2280],[2040,2380],[2640,2300]
-];
-FIXED_CHESTS.forEach((p,i)=>spawnChest(i%6===0,p[0],p[1]));
+  const FIXED_CHESTS=[];
+  for(let i=0;i<30;i++){
+    let p=null;
+    for(let tries=0;tries<20;tries++){
+      const cand=randIsl(160,120);
+      if(FIXED_CHESTS.every(q=>(q[0]-cand[0])**2+(q[1]-cand[1])**2>220*220)){ p=cand; break; }
+    }
+    FIXED_CHESTS.push(p||randIsl(160));
+  }
+  FIXED_CHESTS.forEach((p,i)=>spawnChest(i%6===0,p[0],p[1]));
 }
 
 function spawnChest(big=false,fx=null,fy=null){
@@ -552,7 +554,7 @@ function areAllies(a,b){
 }
 
 function findTarget(u){
-  const AG=u.T.wild?1e6:AGGRO;
+  const AG=u.T.wild?260:AGGRO;
   let best=null, bd=AG*AG;
   for(const e of G.units){
     if(e.dead||areAllies(u.T,e.T)) continue;
@@ -610,7 +612,7 @@ function updateUnits(dt){
     // اختيار هدف
     if(u.re<=0||!u.tgt||u.tgt.dead){ u.tgt=findTarget(u); u.re=.35+rnd(0,.25); }
     const anchorX=u.T.wild?u.ax:u.T.x, anchorY=u.T.wild?u.ay:u.T.y;
-    const leash=u.T.wild?1e6:LEASH;
+    const leash=u.T.wild?240:LEASH;
     let dx=0,dy=0,desired=null;
 
     // الطبيبة تداوي
