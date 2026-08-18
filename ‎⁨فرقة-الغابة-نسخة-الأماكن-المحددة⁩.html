@@ -444,8 +444,9 @@ function spawnChest(big=false,fx=null,fy=null,superC=false){
     const T=G.teams[1+(G.chestTurn||0)%Math.max(1,G.teams.length-1)];
     if(T&&!T.dead){
       const a=rnd(0,TAU), d=rnd(190,430);
-      x=T.x+Math.cos(a)*d; y=T.y+Math.sin(a)*d;
-      x=Math.max(120,Math.min(MAP-120,x)); y=Math.max(120,Math.min(MAP-120,y));
+      const p={x:T.x+Math.cos(a)*d, y:T.y+Math.sin(a)*d};
+      pullIn(p,140);
+      x=p.x; y=p.y;
     }else [x,y]=randIsl(180);
   }
   G.chests.push({x,y,big:big||superC,super:superC,got:false,t:0});
@@ -993,13 +994,13 @@ function updateTeams(dt){
       if(p.dash&&T.dashCd<=0){ T.dash=1; T.dashCd=7; p.dash=0; } }
     else if(T.coop){ // رفيق آلي لين يدخل صديقك
       T.think-=dt;
-      if(T.think<=0){ allyThink(T); T.think=rnd(.4,.8); }
+      if(T.think<=0){ allyThink(T); clampGoalToZone(T); T.think=rnd(.4,.8); }
       const dx=T.gx-T.x, dy=T.gy-T.y, d=Math.hypot(dx,dy);
       if(d>16){ mx=dx/d; my=dy/d; }
     }
     else{
       T.think-=dt;
-      if(T.think<=0){ botThink(T); T.think=rnd(.7,1.4); }
+      if(T.think<=0){ botThink(T); clampGoalToZone(T); T.think=rnd(.7,1.4); }
       const dx=T.gx-T.x, dy=T.gy-T.y, d=Math.hypot(dx,dy);
       if(d>14){ mx=dx/d; my=dy/d; }
       if(T.dashCd<=0&&Math.random()<dt*.18){ T.dash=1; T.dashCd=9; }
@@ -1018,6 +1019,11 @@ function updateTeams(dt){
 
 }
 
+function clampGoalToZone(T){
+  if(G.safeR==null) return;
+  const dx=T.gx-ISL.cx, dy=T.gy-ISL.cy, d=Math.hypot(dx,dy), R=G.safeR-24;
+  if(d>R){ const a=Math.atan2(dy,dx); T.gx=ISL.cx+Math.cos(a)*R; T.gy=ISL.cy+Math.sin(a)*R; }
+}
 function allyThink(T){
   const me=G.teams[MYTEAM];
   const mine=T.units.filter(u=>!u.dead);
