@@ -216,6 +216,9 @@ ATLAS.onload=()=>{
   document.body.style.setProperty('--atlas','url('+ATLAS_SRC+')');
 };
 ATLAS.src=ATLAS_SRC;
+const SPEEDICON_SRC='data:image/jpeg;base64,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';
+const SPEEDICON_IMG=new Image(); let speedIconReady=false; SPEEDICON_IMG.onload=()=>speedIconReady=true; SPEEDICON_IMG.src=SPEEDICON_SRC;
+
 
 // يرسم من الأطلس: (x,y) نقطة الارتكاز، h الارتفاع المطلوب، a='b' أسفل أو 'c' منتصف
 function sprite(name,x,y,h,a,flash){
@@ -305,7 +308,7 @@ const TEAMS=[
 ];
 
 // ─────────────────────────── إعدادات ───────────────────────────
-const MAP=3200, MATCH=300, SQUAD_MAX=200, AGGRO=190, LEASH=185, LEAD_SPD=172, TURBO=25;
+const MAP=3200, MATCH=300, SQUAD_MAX=200, AGGRO=190, LEASH=185, LEAD_SPD=230, TURBO=25;
 
 // ─────────────────────────── شكل الجزيرة ───────────────────────────
 const ISL={cx:0,cy:0,r:0,s1:0,s2:0,s3:0};
@@ -351,7 +354,7 @@ function newGame(mode,seed){
   seed=seed||((Math.random()*1e9)>>>0);
   G={t:0,time:pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH),uid:1,teams:[],units:[],res:[],chests:[],gems:[],shots:[],fx:[],
      nextChest:1.5,over:false,frenzy:0,mark:null,chestTurn:0,evQ:[],seed,
-     coop,pvp,wave:0,waveT:4,boss:null,bossArena:null,bossSpawned:false,bossDown:false,bossTier:0,bossBreak:0,overtimeAnnounced:false,lateBoostAnnounced:false,lives:COOP_LIVES,won:false,shared:0,target:COOP_TARGET,hearts:[]};
+     coop,pvp,wave:0,waveT:4,boss:null,bossArena:null,bossSpawned:false,bossDown:false,bossTier:0,bossBreak:0,overtimeAnnounced:false,lateBoostAnnounced:false,lives:COOP_LIVES,won:false,shared:0,target:COOP_TARGET,hearts:[],speedOrbs:[],matchDuration:(pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH)),safeR:null};
   seedRNG(seed);
   // الأحداث العشوائية (نفسها للاثنين لأن البذرة موحّدة)
   {
@@ -788,6 +791,52 @@ function updateHearts(dt){
     if(taken) G.hearts.splice(i,1);
   }
 }
+function updateSpeedOrbs(dt){
+  G.speedOrbT=(G.speedOrbT===undefined?rnd(14,22):G.speedOrbT)-dt;
+  if(G.speedOrbT<=0 && G.speedOrbs.length<2){
+    G.speedOrbT=rnd(18,28);
+    const [ox,oy]=randIsl(150);
+    G.speedOrbs.push({x:ox,y:oy,t:0,ph:rnd(0,TAU)});
+  }
+  for(let i=G.speedOrbs.length-1;i>=0;i--){
+    const o=G.speedOrbs[i]; o.t+=dt;
+    let taken=false;
+    for(let k=1;k<G.teams.length;k++){
+      const T=G.teams[k]; if(T.dead||T.remoteDisconnected) continue;
+      if((T.x-o.x)**2+(T.y-o.y)**2<44*44){
+        T.speedT=8;
+        fxRing(o.x,o.y,'#4dd0e1'); fxSpr('wind',o.x,o.y-8,30,60,.6);
+        fxText(o.x,o.y-24,'+ سرعة 👢','#4dd0e1');
+        if(T.player) beep(700,.14,'sine',.06);
+        taken=true; break;
+      }
+    }
+    if(taken) G.speedOrbs.splice(i,1);
+  }
+}
+const ZONE_DELAY=120, ZONE_MIN_R=280;
+function updateSafeZone(dt){
+  const elapsed=G.matchDuration-G.time;
+  if(elapsed<ZONE_DELAY){ G.safeR=null; return; }
+  const span=Math.max(1,G.matchDuration-ZONE_DELAY);
+  const p=clamp((elapsed-ZONE_DELAY)/span,0,1);
+  const fullR=MAP*.42;
+  const wasNull=G.safeR===null;
+  G.safeR=fullR-(fullR-ZONE_MIN_R)*p;
+  if(wasNull) announce('🌫️ الغابة تضيق!','ابتعدوا عن الحافة أو ستتضرروا بمرور الوقت');
+  for(let k=1;k<G.teams.length;k++){
+    const T=G.teams[k]; if(T.dead||T.remoteDisconnected) continue;
+    const d=Math.hypot(T.x-ISL.cx,T.y-ISL.cy);
+    if(d>G.safeR){
+      T.zoneT=(T.zoneT||0)+dt;
+      if(T.zoneT>=1){
+        T.zoneT=0;
+        for(const u of T.units){ if(u.dead) continue; hurt(u,Math.max(6,u.max*.08),null); }
+        if(T.player) fxText(T.x,T.y-32,'⚠️ خارج المنطقة الآمنة!','#ff5252');
+      }
+    } else T.zoneT=0;
+  }
+}
 function updateChests(dt){
   G.nextChest-=dt;
   if(G.nextChest<=0&&G.chests.length<12){ spawnChest(); G.nextChest=rnd(1.3,2.4); }
@@ -813,7 +862,7 @@ function updateChests(dt){
   }
 }
 
-function openChest(T,x,y,c){
+async function openChest(T,x,y,c){
   const big=!!(c&&c.big);
   const superC=!!(c&&c.super);
   fxRing(x,y,superC?'#ff4fd8':'#ffd54f'); fxSpr('chestOpen',x,y-4,big?46:30,54,.5);
@@ -821,21 +870,58 @@ function openChest(T,x,y,c){
   if(big){ fxSpr('levelup',x,y-10,60,90,.9); if(T.player) beep(880,.16); }
   if(superC&&T.player){ fxSpr('levelup',x,y-16,84,120,1.1); beep(1040,.2,'triangle',.08); announce('✨ فتحتم الصندوق النادر!','+5 أبطال وجواهر كثيرة'); }
   const n=superC?5:big?3:1;
-  for(let i=0;i<n;i++) grantHero(T,x,y);
-  return;
+  for(let i=0;i<n;i++){
+    if(T.player){
+      const options=pickN(HERO_KEYS,3);
+      const chosen=await heroChoiceOverlay(options);
+      grantHero(T,x,y,chosen);
+    } else {
+      grantHero(T,x,y);
+    }
+  }
 }
 
-function grantHero(T,x,y){
+function pickN(arr,n){
+  const copy=arr.slice();
+  for(let i=copy.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [copy[i],copy[j]]=[copy[j],copy[i]]; }
+  return copy.slice(0,Math.min(n,copy.length));
+}
+function grantHero(T,x,y,forceKey){
   const alive=T.units.filter(u=>!u.dead).length;
   if(alive>=SQUAD_MAX){ dropGems(x,y,8); fxText(x,y-24,'الفرقة ممتلئة! +جواهر','#ffd54f'); return; }
   const lateBoost=G.time<=120;
-  // 55% من الوقت يعطيك بطل تملكه أصلاً حتى يقرب الاندماج
+  let mercy=false;
+  if(lateBoost){
+    const others=G.teams.slice(1).filter(o=>o!==T&&!o.dead);
+    if(others.length){
+      const avgP=others.reduce((s,o)=>s+power(o),0)/others.length;
+      if(avgP>40&&power(T)<avgP*.5) mercy=true;
+    }
+  }
   const have=T.units.filter(u=>!u.dead&&u.lvl===1).map(u=>u.type);
-  const k=(have.length&&Math.random()<.55&&!lateBoost)? pick(have) : pick(HERO_KEYS);
-  addUnit(T,k,lateBoost?3:1,x,y);
-  fxText(x,y-26,(lateBoost?'⭐⭐ ':'')+TYPES[k].e+' '+TYPES[k].n,'#fff');
+  const grantOne=()=>{
+    const k=forceKey||((have.length&&Math.random()<.55&&!lateBoost)? pick(have) : pick(HERO_KEYS));
+    addUnit(T,k,lateBoost?3:1,x,y);
+    fxText(x,y-26,(lateBoost?'⭐⭐ ':'')+TYPES[k].e+' '+TYPES[k].n,'#fff');
+  };
+  grantOne();
+  if(mercy){ grantOne(); grantOne(); fxText(x,y-44,'💪 دعم إضافي لأنكم متأخرون!','#4dd0e1'); }
   if(T.player) beep(lateBoost?880:660,.1,'triangle',.06);
   tryMerge(T);
+}
+function heroChoiceOverlay(options){
+  return new Promise(resolve=>{
+    const o=document.createElement('div');
+    o.className='fpOverlay';
+    o.innerHTML='<div class="fpCard"><div class="fpTitle">🎁 اختر بطلاً</div>'+
+      '<div class="fpSub">الصندوق يعطيك خيار من ثلاثة</div>'+
+      '<div style="display:flex;gap:10px;justify-content:center;margin:14px 0">'+
+      options.map((k,i)=>'<button data-i="'+i+'" style="flex:1;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.18);border-radius:14px;padding:16px 6px;color:#fff;font-weight:800;cursor:pointer;touch-action:manipulation">'+
+        '<div style="font-size:36px">'+TYPES[k].e+'</div><div style="font-size:12px;margin-top:8px">'+esc(TYPES[k].n)+'</div></button>').join('')+
+      '</div></div>';
+    document.body.appendChild(o);
+    o.querySelectorAll('[data-i]').forEach(btn=>btn.addEventListener('click',()=>{ o.remove(); resolve(options[+btn.dataset.i]); }));
+  });
 }
 
 function updateTeams(dt){
@@ -892,8 +978,9 @@ function updateTeams(dt){
     }
     T.rootT=Math.max(0,(T.rootT||0)-dt);
     if(T.rootT>0){ mx=0; my=0; }
+    T.speedT=Math.max(0,(T.speedT||0)-dt);
     if(T.dash>0&&Math.random()<.4) fxSpr('dust',T.x+rnd(-14,14),T.y+rnd(-6,10),16,40,.4);
-    const sp=LEAD_SPD*(T.dash>0?1.7:1);
+    const sp=LEAD_SPD*(T.dash>0?1.7:1)*(T.speedT>0?1.5:1);
     T.x+=mx*sp*dt; T.y+=my*sp*dt; pullIn(T,40);
     T.move=Math.hypot(mx,my);
     // اندماج تلقائي
@@ -1283,11 +1370,13 @@ function step(dt){
   if(G.coop) updateCoop(dt);
   readInput();
   updateTeams(dt);
+  updateSafeZone(dt);
   updateUnits(dt);
   updateShots(dt);
   updateGems(dt);
   updateChests(dt);
   updateHearts(dt);
+  updateSpeedOrbs(dt);
   updateSaboteurs(dt);
   updateFx(dt);
   respawnResources(dt);
@@ -1351,6 +1440,7 @@ function draw(){
     ctx.globalAlpha=.85; sprite(d.spr,d.x,d.y+d.h*.3,d.h,'c'); ctx.globalAlpha=1; }
   for(const g of G.gems){ if(vis(g.x,g.y,40)) drawGem(g); }
   for(const h of G.hearts){ if(vis(h.x,h.y,44)) drawHeart(h); }
+  for(const o of G.speedOrbs){ if(vis(o.x,o.y,44)) drawSpeedOrb(o); }
   for(const c of G.chests){ if(vis(c.x,c.y,60)) drawChest(c); }
 
   const list=[];
@@ -1359,6 +1449,47 @@ function draw(){
   for(const u of G.units){ if(vis(u.x,u.y,80)) list.push(u); }
   list.sort((a,b)=>a.y-b.y);
   for(const d of list){ if(d.isRes) drawRes(d); else if(d.T) drawUnit(d); else drawDecor(d); }
+
+  // المنطقة الآمنة المتقلّصة: خارجها تتضرر تدريجيًا.
+  if(G.safeR!=null){
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(cam.x-100,cam.y-100,vw+200,vh+200);
+    ctx.arc(ISL.cx,ISL.cy,G.safeR,0,TAU,true);
+    ctx.clip('evenodd');
+    ctx.fillStyle='rgba(60,10,80,.26)';
+    ctx.fillRect(cam.x-100,cam.y-100,vw+200,vh+200);
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle='#ba68c8'; ctx.lineWidth=6; ctx.globalAlpha=.8; ctx.setLineDash([16,10]);
+    ctx.beginPath(); ctx.arc(ISL.cx,ISL.cy,G.safeR,0,TAU); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  // هالة نطاق الفرق: أعلى مدى هجوم عند كل فرقة (رمادي=أنت، أزرق=حليف، أحمر=خصم).
+  {
+    const myT=ME();
+    for(let k=1;k<G.teams.length;k++){
+      const T=G.teams[k];
+      if(T.dead||T.remoteDisconnected) continue;
+      const aliveUnits=T.units.filter(u=>!u.dead);
+      if(!aliveUnits.length) continue;
+      const maxR=Math.max(...aliveUnits.map(u=>(TYPES[u.type]&&TYPES[u.type].rng)||30));
+      if(!vis(T.x,T.y,maxR+40)) continue;
+      let col;
+      if(T===myT) col='176,176,176';
+      else if(areAllies(myT,T)) col='42,140,240';
+      else col='239,83,80';
+      ctx.save();
+      ctx.globalAlpha=.13; ctx.fillStyle='rgb('+col+')';
+      ctx.beginPath(); ctx.arc(T.x,T.y,maxR,0,TAU); ctx.fill();
+      ctx.globalAlpha=.30; ctx.strokeStyle='rgb('+col+')'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(T.x,T.y,maxR,0,TAU); ctx.stroke();
+      ctx.restore();
+    }
+  }
 
   // ساحة الزعيم: حلقة واضحة تبين حدود القتال الإجباري.
   if(G.coop&&G.boss&&!G.boss.dead&&G.bossArena){
@@ -1550,6 +1681,17 @@ function drawHeart(h){
   ctx.bezierCurveTo(s*.55,-s*.9,s*.7,-s*.35,0,s*.32);
   ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.restore();
+}
+
+function drawSpeedOrb(o){
+  const b=Math.sin(o.ph+G.t*3)*2.5;
+  ctx.globalAlpha=.25; sprite('shadow',o.x,o.y+9,26,'c'); ctx.globalAlpha=1;
+  ctx.globalAlpha=.35+.15*Math.sin(o.ph+G.t*4); ctx.fillStyle='#4dd0e1';
+  ctx.beginPath(); ctx.arc(o.x,o.y-2,24,0,TAU); ctx.fill(); ctx.globalAlpha=1;
+  if(speedIconReady){
+    const s=30;
+    ctx.drawImage(SPEEDICON_IMG,o.x-s/2,o.y-10-s*.42+b,s,s*SPEEDICON_IMG.height/SPEEDICON_IMG.width);
+  }
 }
 
 function drawRes(r){
@@ -2356,6 +2498,7 @@ function makeSnap(){
   const TS=G.teams.slice(1).map(T=>[Math.round(T.x),Math.round(T.y),T.gems,T.dead?1:0,Math.round(T.dashCd*10)]);
   const CH=G.chests.map(c=>[Math.round(c.x),Math.round(c.y),c.big?1:0,c.super?1:0]);
   const HT=(G.hearts||[]).map(h=>[Math.round(h.x),Math.round(h.y)]);
+  const SO=(G.speedOrbs||[]).map(o=>[Math.round(o.x),Math.round(o.y)]);
   const GM=G.gems.map(g=>[Math.round(g.x),Math.round(g.y)]);
   const RS=[]; G.res.forEach((r,i)=>{ if(r.dead||r.hp<r.max) RS.push([i,r.dead?1:0,Math.round(r.hp)]); });
   const MVTYPE={slam:1,charge:2,barrage:3,web:4,shield:5,teleport:6};
@@ -2371,7 +2514,7 @@ function makeSnap(){
           bdx:G.boss?Math.round((G.boss.dashDX||0)*100):0,bdy:G.boss?Math.round((G.boss.dashDY||0)*100):0,
           bdl:G.boss?Math.round(G.boss.dashLen||0):0,
           bts:G.boss&&G.boss.teleSpots?G.boss.teleSpots.map(s=>[Math.round(s.x),Math.round(s.y)]):[],
-          U,TS,CH,GM,RS,HT};
+          U,TS,CH,GM,RS,HT,SO};
 }
 const SNAPKEY=[...HERO_KEYS,'','','','','','','','','','','','slime','brute','boss','wolf','shaman','titan','saboteur'];
 function applySnap(s){
@@ -2407,6 +2550,7 @@ function applySnap(s){
   G.chests=s.CH.map(c=>({x:c[0],y:c[1],big:!!c[2],super:!!c[3],t:G.t*3}));
   G.gems=s.GM.map(g=>({x:g[0],y:g[1],vx:0,vy:0,t:1,ph:rnd(0,TAU)}));
   G.hearts=(s.HT||[]).map(h=>({x:h[0],y:h[1],t:0,ph:rnd(0,TAU)}));
+  G.speedOrbs=(s.SO||[]).map(o=>({x:o[0],y:o[1],t:0,ph:rnd(0,TAU)}));
   for(const [i,d,hp] of s.RS){ const r=G.res[i]; if(r){ r.dead=!!d; r.hp=hp; } }
 }
 // تنعيم حركة ما يصل من المضيف
