@@ -607,6 +607,7 @@ function updateUnits(dt){
   for(let i=G.units.length-1;i>=0;i--){
     const u=G.units[i];
     if(u.dead){ G.units.splice(i,1); const j=u.T.units.indexOf(u); if(j>=0) u.T.units.splice(j,1); continue; }
+    if(u.type==='boss'&&u.mode&&u.mode!=='idle'){ u.hitT=Math.max(0,u.hitT-dt); u.pop=Math.max(0,u.pop-dt); continue; }
     const t=TYPES[u.type];
     u.cd-=dt; u.re-=dt; u.hitT=Math.max(0,u.hitT-dt); u.pop=Math.max(0,u.pop-dt);
     // اختيار هدف
@@ -1060,10 +1061,90 @@ function spawnBoss(){
     b.size=42; G.boss=b;
     // ساحة زعيم مغلقة: لا يمكن للاعبين الهروب لمسافة بعيدة عن المعركة.
     G.bossArena={x,y,r:430};
+    b.mode='idle'; b.moveCd=rnd(3,4); b.moveType=''; b.enraging=false; b.enrageT=0;
   }
   fxSpr('portal',x,y,30,120,1);
   announce('🐲 زعيم الغابة ظهر!','⚔️ القتال إجباري — لا يمكن الهروب من الساحة');
   beep(90,.5,'sawtooth',.08);
+}
+
+// ─────────────────────────── حركات الزعيم الخاصة ───────────────────────────
+function bossAoeHit(x,y,r,dmg){
+  for(const u of G.units){
+    if(u.dead||u.T.wild) continue;
+    if((u.x-x)**2+(u.y-y)**2<r*r) hurt(u,dmg,G.boss);
+  }
+}
+function bossPickTarget(){
+  let best=null,bd=1e12;
+  for(let k=1;k<G.teams.length;k++){ const T=G.teams[k]; if(T.dead) continue;
+    const d=(T.x-G.boss.x)**2+(T.y-G.boss.y)**2;
+    if(d<bd){ bd=d; best=T; } }
+  return best||{x:G.boss.x,y:G.boss.y};
+}
+function startBossMove(){
+  const b=G.boss; const target=bossPickTarget();
+  const pool = b.phase>=2 ? ['slam','charge','barrage'] : ['slam','charge'];
+  b.moveType=pick(pool);
+  b.mode='telegraph'; b.moveT=.8; b.teleT0=.8;
+  if(b.moveType==='slam'){
+    b.teleX=target.x; b.teleY=target.y; b.teleR=110;
+    announce('⚠️ ضربة أرضية قادمة!','اخرجوا من الدائرة الحمراء');
+  }else if(b.moveType==='charge'){
+    const dx=target.x-b.x, dy=target.y-b.y, d=Math.hypot(dx,dy)||1;
+    b.dashDX=dx/d; b.dashDY=dy/d; b.dashLen=Math.min(560,d+140);
+    announce('⚠️ اندفاع قادم!','ابتعدوا عن مسار الخط الأحمر');
+  }else{
+    b.teleSpots=[]; const n=b.phase>=3?5:4;
+    for(let i=0;i<n;i++){ const a=RND()*TAU, r=RND()*170;
+      b.teleSpots.push({x:clamp(target.x+Math.cos(a)*r,80,MAP-80),y:clamp(target.y+Math.sin(a)*r,80,MAP-80)}); }
+    announce('⚠️ وابل صخور قادم!','ابتعدوا عن الدوائر الحمراء الصغيرة');
+  }
+  beep(220,.18,'sawtooth',.06);
+}
+function resolveBossMove(){
+  const b=G.boss;
+  if(b.moveType==='slam'){
+    bossAoeHit(b.teleX,b.teleY,b.teleR,b.enraging?52:38);
+    fxRing(b.teleX,b.teleY,'#ff5252'); fxSpr('boom',b.teleX,b.teleY,50,140,.55);
+    beep(70,.35,'sawtooth',.1);
+    b.mode='idle'; b.moveCd=b.enraging?2.2:rnd(3.6,4.6);
+  }else if(b.moveType==='charge'){
+    b.mode='dashing'; b.dashT=.42; b.dashHitSet=new Set();
+  }else{
+    for(const s of b.teleSpots){ bossAoeHit(s.x,s.y,72,b.enraging?32:22); fxRing(s.x,s.y,'#ff8a65'); fxSpr('boom',s.x,s.y,30,80,.4); }
+    beep(140,.3,'sawtooth',.08);
+    b.mode='idle'; b.moveCd=b.enraging?2.2:rnd(3.6,4.6);
+  }
+}
+function stepBossDash(dt){
+  const b=G.boss, sp=780;
+  b.x+=b.dashDX*sp*dt; b.y+=b.dashDY*sp*dt; b.dashT-=dt;
+  pullIn(b,20);
+  for(const u of G.units){
+    if(u.dead||u.T.wild||b.dashHitSet.has(u.id)) continue;
+    if((u.x-b.x)**2+(u.y-b.y)**2<64*64){ hurt(u,b.enraging?46:34,b); b.dashHitSet.add(u.id); }
+  }
+  if(b.dashT<=0){ b.mode='idle'; b.moveCd=b.enraging?2.2:rnd(3.6,4.6); }
+}
+function updateBossAI(dt){
+  const b=G.boss; if(!b||b.dead) return;
+  b.phase = b.hp>b.max*.7?1 : b.hp>b.max*.35?2:3;
+  if(b.phase===3 && !b.enraging && b.enrageT<=0){
+    b.enraging=true; b.enrageT=6;
+    announce('😡 الزعيم غضب!','هجماته أسرع الآن — ركّزوا واحذروا');
+  }
+  if(b.enrageT>0){ b.enrageT-=dt; if(b.enrageT<=0) b.enraging=false; }
+
+  if(b.mode==='idle'){
+    b.moveCd-=dt;
+    if(b.moveCd<=0) startBossMove();
+  }else if(b.mode==='telegraph'){
+    b.moveT-=dt;
+    if(b.moveT<=0) resolveBossMove();
+  }else if(b.mode==='dashing'){
+    stepBossDash(dt);
+  }
 }
 
 function updateCoop(dt){
@@ -1075,7 +1156,7 @@ function updateCoop(dt){
   if(!G.bossSpawned&&G.time<=BOSS_AT){ spawnBoss(); G.bossSpawned=true; }
   G.waveT-=dt;
   if(G.waveT<=0&&G.time>3){ spawnWave(); G.waveT=WAVE_EVERY; }
-  if(G.boss&&!G.boss.dead) G.mark={x:G.boss.x,y:G.boss.y,t:3};
+  if(G.boss&&!G.boss.dead){ G.mark={x:G.boss.x,y:G.boss.y,t:3}; updateBossAI(dt); }
   if(G.bossDown&&G.shared>=G.target&&!G.over){ G.won=true; endMatch(); }
 }
 
@@ -1167,6 +1248,40 @@ function draw(){
     ctx.fillStyle='#ff5252';
     ctx.beginPath(); ctx.arc(A.x,A.y,A.r,0,TAU); ctx.fill();
     ctx.restore();
+  }
+
+  // تحذيرات حركات الزعيم الخاصة (يظهر عند المضيف والضيف كلاهما).
+  {
+    const bossVis=G.boss||G.netBoss;
+    if(G.coop&&bossVis&&!bossVis.dead){
+      const pulse=.55+.35*Math.sin(G.t*10);
+      if(bossVis.enraging){
+        ctx.save(); ctx.globalAlpha=.35+.2*pulse; ctx.strokeStyle='#ff1744'; ctx.lineWidth=6;
+        ctx.beginPath(); ctx.arc(bossVis.x,bossVis.y,54,0,TAU); ctx.stroke(); ctx.restore();
+      }
+      if(bossVis.mode==='telegraph'){
+        ctx.save();
+        if(bossVis.moveType==='slam'){
+          ctx.globalAlpha=.16+.12*pulse; ctx.fillStyle='#ff1744';
+          ctx.beginPath(); ctx.arc(bossVis.teleX,bossVis.teleY,bossVis.teleR,0,TAU); ctx.fill();
+          ctx.globalAlpha=.75; ctx.strokeStyle='#ff1744'; ctx.lineWidth=5;
+          ctx.beginPath(); ctx.arc(bossVis.teleX,bossVis.teleY,bossVis.teleR,0,TAU); ctx.stroke();
+        }else if(bossVis.moveType==='charge'){
+          ctx.globalAlpha=.26+.15*pulse; ctx.strokeStyle='#ff1744'; ctx.lineWidth=54; ctx.lineCap='round';
+          ctx.beginPath(); ctx.moveTo(bossVis.x,bossVis.y);
+          ctx.lineTo(bossVis.x+bossVis.dashDX*bossVis.dashLen,bossVis.y+bossVis.dashDY*bossVis.dashLen);
+          ctx.stroke();
+        }else if(bossVis.moveType==='barrage'&&bossVis.teleSpots){
+          for(const s of bossVis.teleSpots){
+            ctx.globalAlpha=.2+.15*pulse; ctx.fillStyle='#ff1744';
+            ctx.beginPath(); ctx.arc(s.x,s.y,72,0,TAU); ctx.fill();
+            ctx.globalAlpha=.8; ctx.strokeStyle='#ff1744'; ctx.lineWidth=4;
+            ctx.beginPath(); ctx.arc(s.x,s.y,72,0,TAU); ctx.stroke();
+          }
+        }
+        ctx.restore();
+      }
+    }
   }
 
   // المبنى الذي يحميه فريق التعاون من هجمات الوحوش.
@@ -1879,15 +1994,34 @@ function makeSnap(){
   const CH=G.chests.map(c=>[Math.round(c.x),Math.round(c.y),c.big?1:0]);
   const GM=G.gems.map(g=>[Math.round(g.x),Math.round(g.y)]);
   const RS=[]; G.res.forEach((r,i)=>{ if(r.dead||r.hp<r.max) RS.push([i,r.dead?1:0,Math.round(r.hp)]); });
+  const MVTYPE={slam:1,charge:2,barrage:3};
+  const MVMODE={idle:0,telegraph:1,dashing:2};
   return {t:Math.round(G.time*10),w:G.wave,l:G.lives,sh:G.shared,bd:G.bossDown?1:0,
           bh:G.boss?Math.round(G.boss.hp):0,bm:G.boss?Math.round(G.boss.max):0,
-          gh:G.building?Math.round(G.building.hp):0,gd:G.building&&G.building.dead?1:0,U,TS,CH,GM,RS};
+          gh:G.building?Math.round(G.building.hp):0,gd:G.building&&G.building.dead?1:0,
+          bx:G.boss?Math.round(G.boss.x):0,by:G.boss?Math.round(G.boss.y):0,
+          bmo:G.boss?(MVMODE[G.boss.mode]||0):0,bmt:G.boss?(MVTYPE[G.boss.moveType]||0):0,
+          ben:G.boss&&G.boss.enraging?1:0,
+          btx:G.boss?Math.round(G.boss.teleX||G.boss.x):0,bty:G.boss?Math.round(G.boss.teleY||G.boss.y):0,
+          btr:G.boss?Math.round(G.boss.teleR||0):0,
+          bdx:G.boss?Math.round((G.boss.dashDX||0)*100):0,bdy:G.boss?Math.round((G.boss.dashDY||0)*100):0,
+          bdl:G.boss?Math.round(G.boss.dashLen||0):0,
+          bts:G.boss&&G.boss.teleSpots?G.boss.teleSpots.map(s=>[Math.round(s.x),Math.round(s.y)]):[],
+          U,TS,CH,GM,RS};
 }
 const SNAPKEY=[...HERO_KEYS,'','','','','','','','','','','','slime','brute','boss','wolf','shaman','titan'];
 function applySnap(s){
   if(!G||!G.coop) return;
   G.time=s.t/10; G.wave=s.w; G.lives=s.l; G.shared=s.sh; G.bossDown=!!s.bd;
-  G.netBoss=s.bm?{hp:s.bh,max:s.bm}:null;
+  G.netBoss=s.bm?{hp:s.bh,max:s.bm,dead:false,
+    x:s.bx,y:s.by,
+    mode:['idle','telegraph','dashing'][s.bmo]||'idle',
+    moveType:['','slam','charge','barrage'][s.bmt]||'',
+    enraging:!!s.ben,
+    teleX:s.btx,teleY:s.bty,teleR:s.btr,
+    dashDX:(s.bdx||0)/100,dashDY:(s.bdy||0)/100,dashLen:s.bdl,
+    teleSpots:(s.bts||[]).map(p=>({x:p[0],y:p[1]}))
+  }:null;
   if(G.building&&s.gh!==undefined){ G.building.hp=s.gh; G.building.dead=!!s.gd; }
   s.TS.forEach((d,i)=>{ const T=G.teams[i+1]; if(!T) return;
     T.nx=d[0]; T.ny=d[1]; T.gems=d[2]; T.dead=!!d[3]; T.dashCd=d[4]/10;
