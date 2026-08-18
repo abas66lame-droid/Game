@@ -278,7 +278,7 @@ const COOP_TEAMS=[
   {n:'أنت',      c:'#ffffff', player:true, coop:true},
   {n:'صديقك',    c:'#4dd0e1', coop:true},
 ];
-const COOP_MATCH=300, COOP_TARGET=1200, COOP_LIVES=12, WAVE_EVERY=10, WILD_CAP=150, BOSS_AT=210;
+const COOP_MATCH=300, COOP_TARGET=1200, COOP_LIVES=12, WAVE_EVERY=10, WILD_CAP=150, BOSS_AT=150;
 const DUEL_TEAMS=[
   {n:'البرية',   c:'#795548', wild:true},
   {n:'أنت',      c:'#ffffff', player:true, coop:true},
@@ -287,13 +287,13 @@ const DUEL_TEAMS=[
 const DUEL_MATCH=150;
 const BUILDING_HP=6000;
 const BOSSES=[
-  { key:'boss',     name:'زعيم الغابة',        emoji:'🐲', hp:5000,  dmg:24, spd:.50, size:42,
+  { key:'boss',     name:'زعيم الغابة',        emoji:'🐲', hp:5000,  dmg:24, spd:.62, size:42,
     movesByPhase:[['slam','charge'],['slam','charge','barrage'],['slam','charge','barrage']] },
-  { key:'spider',   name:'ملكة العناكب',       emoji:'🕷️', hp:9000,  dmg:28, spd:.64, size:46,
+  { key:'spider',   name:'ملكة العناكب',       emoji:'🕷️', hp:9000,  dmg:28, spd:.76, size:46,
     movesByPhase:[['slam','web'],['slam','web','charge'],['slam','web','charge','barrage']] },
-  { key:'colossus', name:'عملاق الصخر',        emoji:'🗿', hp:15000, dmg:34, spd:.40, size:54,
+  { key:'colossus', name:'عملاق الصخر',        emoji:'🗿', hp:15000, dmg:34, spd:.50, size:54,
     movesByPhase:[['slam','shield'],['slam','shield','barrage'],['slam','shield','barrage','charge']] },
-  { key:'spirit',   name:'روح الغابة القديمة', emoji:'🐉', hp:24000, dmg:42, spd:.68, size:58,
+  { key:'spirit',   name:'روح الغابة القديمة', emoji:'🐉', hp:24000, dmg:42, spd:.84, size:58,
     movesByPhase:[['slam','charge','teleport'],['slam','charge','barrage','teleport'],['slam','charge','barrage','teleport']] },
 ];
 
@@ -814,7 +814,7 @@ function updateSpeedOrbs(dt){
     if(taken) G.speedOrbs.splice(i,1);
   }
 }
-const ZONE_DELAY=120, ZONE_MIN_R=280;
+const ZONE_DELAY=60, ZONE_MIN_R=280;
 function updateSafeZone(dt){
   const elapsed=G.matchDuration-G.time;
   if(elapsed<ZONE_DELAY){ G.safeR=null; return; }
@@ -837,7 +837,18 @@ function updateSafeZone(dt){
     } else T.zoneT=0;
   }
 }
+function chestCost(T){
+  const k=(T.chestCount||0)+1;
+  let base;
+  if(k<=1) base=0;
+  else if(k===2) base=1;
+  else base=2*(k-2);
+  const minute=Math.floor((G.matchDuration-G.time)/60)+1;
+  const cap=10*(minute+1);
+  return Math.min(base,cap);
+}
 function updateChests(dt){
+  for(let k=1;k<G.teams.length;k++){ const T=G.teams[k]; if(T.chestWarnT>0) T.chestWarnT-=dt; }
   G.nextChest-=dt;
   if(G.nextChest<=0&&G.chests.length<12){ spawnChest(); G.nextChest=rnd(1.3,2.4); }
   G.superChestT=(G.superChestT===undefined?rnd(55,85):G.superChestT)-dt;
@@ -854,6 +865,12 @@ function updateChests(dt){
     for(let k=1;k<G.teams.length;k++){
       const T=G.teams[k]; if(T.dead||T.remoteDisconnected) continue;
       if((T.x-c.x)**2+(T.y-c.y)**2<40*40){
+        const cost=chestCost(T);
+        if(T.gems<cost){
+          if(T.player&&(T.chestWarnT||0)<=0){ T.chestWarnT=1.2; fxText(c.x,c.y-30,'تحتاج '+cost+' 💎 لفتحه','#ff5252'); }
+          continue;
+        }
+        T.gems-=cost; T.chestCount=(T.chestCount||0)+1;
         G.chests.splice(i,1);
         openChest(T,c.x,c.y,c);
         break;
@@ -873,7 +890,7 @@ async function openChest(T,x,y,c){
   for(let i=0;i<n;i++){
     if(T.player){
       const options=pickN(HERO_KEYS,3);
-      const chosen=await heroChoiceOverlay(options);
+      const chosen=await heroChoiceOverlay(options,T);
       grantHero(T,x,y,chosen);
     } else {
       grantHero(T,x,y);
@@ -909,15 +926,26 @@ function grantHero(T,x,y,forceKey){
   if(T.player) beep(lateBoost?880:660,.1,'triangle',.06);
   tryMerge(T);
 }
-function heroChoiceOverlay(options){
+function heroChoiceOverlay(options,T){
   return new Promise(resolve=>{
+    // البطل الأنسب: أكبر عدد نسخ من نفس النوع بمستوى 1 غير مندمجة عندك حاليًا (الأقرب للاندماج)
+    const lvl1Counts={};
+    if(T) for(const u of T.units){ if(!u.dead&&u.lvl===1) lvl1Counts[u.type]=(lvl1Counts[u.type]||0)+1; }
+    let bestIdx=-1, bestCount=0;
+    options.forEach((k,i)=>{ const n=lvl1Counts[k]||0; if(n>bestCount){ bestCount=n; bestIdx=i; } });
     const o=document.createElement('div');
     o.className='fpOverlay';
     o.innerHTML='<div class="fpCard"><div class="fpTitle">🎁 اختر بطلاً</div>'+
-      '<div class="fpSub">الصندوق يعطيك خيار من ثلاثة</div>'+
+      '<div class="fpSub">الصندوق يعطيك خيار من ثلاثة'+(bestIdx>=0?' — ⭐ الأنسب لدمجك':'')+'</div>'+
       '<div style="display:flex;gap:10px;justify-content:center;margin:14px 0">'+
-      options.map((k,i)=>'<button data-i="'+i+'" style="flex:1;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.18);border-radius:14px;padding:16px 6px;color:#fff;font-weight:800;cursor:pointer;touch-action:manipulation">'+
-        '<div style="font-size:36px">'+TYPES[k].e+'</div><div style="font-size:12px;margin-top:8px">'+esc(TYPES[k].n)+'</div></button>').join('')+
+      options.map((k,i)=>{
+        const rec=i===bestIdx;
+        return '<button data-i="'+i+'" style="flex:1;position:relative;background:rgba(255,255,255,.08);border:2px solid '+(rec?'#ffd54f':'rgba(255,255,255,.18)')+';border-radius:14px;padding:16px 6px;color:#fff;font-weight:800;cursor:pointer;touch-action:manipulation'+(rec?';box-shadow:0 0 0 3px rgba(255,213,79,.25)':'')+'">'+
+        (rec?'<div style="position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:#ffd54f;color:#3a2a00;font-size:10px;font-weight:900;border-radius:8px;padding:2px 8px;white-space:nowrap">⭐ الأنسب</div>':'')+
+        '<div style="font-size:36px">'+TYPES[k].e+'</div><div style="font-size:12px;margin-top:8px">'+esc(TYPES[k].n)+'</div>'+
+        (bestCount>0&&rec?'<div style="font-size:10px;margin-top:4px;opacity:.75">قريب من الاندماج</div>':'')+
+        '</button>';
+      }).join('')+
       '</div></div>';
     document.body.appendChild(o);
     o.querySelectorAll('[data-i]').forEach(btn=>btn.addEventListener('click',()=>{ o.remove(); resolve(options[+btn.dataset.i]); }));
@@ -988,29 +1016,6 @@ function updateTeams(dt){
     if(T.mergeT<=0){ tryMerge(T); T.mergeT=.35; }
   }
 
-  // ساحة الزعيم: اللاعبون لا يستطيعون الهروب بعيداً.
-  // إذا حاول اللاعب الخروج، يُعاد إلى حافة الساحة ويتلقى ضرراً مستمراً.
-  if(G.coop&&G.boss&& !G.boss.dead&&G.bossArena){
-    const A=G.bossArena;
-    for(let k=1;k<G.teams.length;k++){
-      const T=G.teams[k];
-      if(T.dead||T.remoteDisconnected) continue;
-      const dx=T.x-A.x, dy=T.y-A.y, d=Math.hypot(dx,dy)||1;
-      if(d>A.r){
-        const nx=dx/d, ny=dy/d;
-        T.x=A.x+nx*(A.r-8); T.y=A.y+ny*(A.r-8);
-        T.escapeT=(T.escapeT||0)+dt;
-        if(T.escapeT>.45){
-          T.escapeT=0;
-          T.hp=Math.max(1,(T.hp||T.max||100)-Math.max(3,(T.max||100)*.035));
-          fxHit(T.x,T.y,'#ff5252');
-          fxText(T.x,T.y-38,'ارجع للقتال!','#ff5252');
-        }
-      }else{
-        T.escapeT=0;
-      }
-    }
-  }
 }
 
 function allyThink(T){
@@ -1206,9 +1211,9 @@ function spawnBoss(tier){
   // تنظيف الساحة: تنسحب أغلب الوحوش قبل المواجهة
   const rest=G.teams[0].units.filter(u=>!u.dead);
   rest.slice(4).forEach(u=>{ u.dead=true; fxSpr('dust',u.x,u.y,20,44,.4); });
-  // شفاء ودعم للفريق قبل المواجهة
+  // شفاء جزئي فقط قبل المواجهة (مو كامل — عشان القتال يبقى فيه خطر حقيقي)
   for(let i=1;i<G.teams.length;i++){ const T=G.teams[i];
-    for(const u of T.units) if(!u.dead) u.hp=u.max;
+    for(const u of T.units) if(!u.dead) u.hp=Math.min(u.max,u.hp+u.max*.45);
     fxSpr('heal',T.x,T.y,26,60,.6);
   }
   const a=rnd(0,TAU), R=(islR(a))*.25;
@@ -1217,12 +1222,11 @@ function spawnBoss(tier){
   if(b){
     b.size=roster.size; b.lvl=tier; b.tier=tier; b.hp=b.max=roster.hp; b.dmg=roster.dmg;
     b.bossKey=roster.key; G.boss=b;
-    // ساحة زعيم مغلقة: لا يمكن للاعبين الهروب لمسافة بعيدة عن المعركة.
-    G.bossArena={x,y,r:430};
+    b.homeX=x; b.homeY=y;
     b.mode='idle'; b.moveCd=rnd(3,4); b.moveType=''; b.enraging=false; b.enrageT=0; b.shieldT=0; b.shielded=false;
   }
   fxSpr('portal',x,y,30,120,1);
-  announce(roster.emoji+' '+roster.name+' ظهر!','⚔️ القتال إجباري — لا يمكن الهروب من الساحة');
+  announce(roster.emoji+' '+roster.name+' ظهر!','⚔️ سيلاحقكم أينما ذهبتم — استعدوا!');
   beep(90,.5,'sawtooth',.08);
 }
 
@@ -1315,6 +1319,7 @@ function stepBossDash(dt){
 }
 function updateBossAI(dt){
   const b=G.boss; if(!b||b.dead) return;
+  b.ax=b.x; b.ay=b.y; // بلا قفص: يلاحق اللاعبين بلا حدود مسافة عن نقطة ظهوره
   b.phase = b.hp>b.max*.7?1 : b.hp>b.max*.35?2:3;
   if(b.phase===3 && !b.enraging && b.enrageT<=0){
     b.enraging=true; b.enrageT=6;
@@ -1345,7 +1350,7 @@ function updateCoop(dt){
       if(!G.over){ G.won=true; endMatch(); }
       return;
     }
-    G.bossBreak=6;
+    G.bossBreak=18;
     announce('💥 سقط '+beaten.name+'!','الزعيم التالي يقترب...');
   }
   // الزعيم الأول يظهر عند اقتراب نهاية الوقت، ثم كل زعيم يظهر بعد سقوط سابقه.
@@ -1483,27 +1488,12 @@ function draw(){
       else if(areAllies(myT,T)) col='42,140,240';
       else col='239,83,80';
       ctx.save();
-      ctx.globalAlpha=.13; ctx.fillStyle='rgb('+col+')';
+      ctx.globalAlpha=.32; ctx.fillStyle='rgb('+col+')';
       ctx.beginPath(); ctx.arc(T.x,T.y,maxR,0,TAU); ctx.fill();
-      ctx.globalAlpha=.30; ctx.strokeStyle='rgb('+col+')'; ctx.lineWidth=2;
+      ctx.globalAlpha=.5; ctx.strokeStyle='rgb('+col+')'; ctx.lineWidth=2;
       ctx.beginPath(); ctx.arc(T.x,T.y,maxR,0,TAU); ctx.stroke();
       ctx.restore();
     }
-  }
-
-  // ساحة الزعيم: حلقة واضحة تبين حدود القتال الإجباري.
-  if(G.coop&&G.boss&&!G.boss.dead&&G.bossArena){
-    const A=G.bossArena;
-    ctx.save();
-    ctx.globalAlpha=.20;
-    ctx.strokeStyle='#ff5252';
-    ctx.lineWidth=8;
-    ctx.setLineDash([18,12]);
-    ctx.beginPath(); ctx.arc(A.x,A.y,A.r,0,TAU); ctx.stroke();
-    ctx.globalAlpha=.07;
-    ctx.fillStyle='#ff5252';
-    ctx.beginPath(); ctx.arc(A.x,A.y,A.r,0,TAU); ctx.fill();
-    ctx.restore();
   }
 
   // تحذيرات حركات الزعيم الخاصة (يظهر عند المضيف والضيف كلاهما).
@@ -2597,17 +2587,6 @@ function loop(ts){
         T.x+=mx*sp*dt0; T.y+=my*sp*dt0; pullIn(T,40);
         T.move=Math.hypot(mx,my);
         const dx=T.x-ox, dy=T.y-oy;
-
-        // نفس قيد ساحة الزعيم محلياً حتى لا يشعر الضيف أنه يستطيع الهروب
-        // قبل وصول تصحيح المضيف.
-        if(G.boss&& !G.boss.dead&&G.bossArena){
-          const A=G.bossArena;
-          const ax=T.x-A.x, ay=T.y-A.y, ad=Math.hypot(ax,ay)||1;
-          if(ad>A.r){
-            T.x=A.x+(ax/ad)*(A.r-8);
-            T.y=A.y+(ay/ad)*(A.r-8);
-          }
-        }
 
         // تنبؤ محلي لوحدات اللاعب حتى تكون الحركة فورية على جهاز الضيف،
         // ثم تصححها snapshots القادمة من المضيف.
