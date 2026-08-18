@@ -351,7 +351,7 @@ function newGame(mode,seed){
   seed=seed||((Math.random()*1e9)>>>0);
   G={t:0,time:pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH),uid:1,teams:[],units:[],res:[],chests:[],gems:[],shots:[],fx:[],
      nextChest:1.5,over:false,frenzy:0,mark:null,chestTurn:0,evQ:[],seed,
-     coop,pvp,wave:0,waveT:4,boss:null,bossArena:null,bossSpawned:false,bossDown:false,bossTier:0,bossBreak:0,overtimeAnnounced:false,lives:COOP_LIVES,won:false,shared:0,target:COOP_TARGET,hearts:[]};
+     coop,pvp,wave:0,waveT:4,boss:null,bossArena:null,bossSpawned:false,bossDown:false,bossTier:0,bossBreak:0,overtimeAnnounced:false,lateBoostAnnounced:false,lives:COOP_LIVES,won:false,shared:0,target:COOP_TARGET,hearts:[]};
   seedRNG(seed);
   // الأحداث العشوائية (نفسها للاثنين لأن البذرة موحّدة)
   {
@@ -828,12 +828,13 @@ function openChest(T,x,y,c){
 function grantHero(T,x,y){
   const alive=T.units.filter(u=>!u.dead).length;
   if(alive>=SQUAD_MAX){ dropGems(x,y,8); fxText(x,y-24,'الفرقة ممتلئة! +جواهر','#ffd54f'); return; }
+  const lateBoost=G.time<=120;
   // 55% من الوقت يعطيك بطل تملكه أصلاً حتى يقرب الاندماج
   const have=T.units.filter(u=>!u.dead&&u.lvl===1).map(u=>u.type);
-  const k=(have.length&&Math.random()<.55)? pick(have) : pick(HERO_KEYS);
-  addUnit(T,k,1,x,y);
-  fxText(x,y-26,TYPES[k].e+' '+TYPES[k].n,'#fff');
-  if(T.player) beep(660,.1,'triangle',.06);
+  const k=(have.length&&Math.random()<.55&&!lateBoost)? pick(have) : pick(HERO_KEYS);
+  addUnit(T,k,lateBoost?3:1,x,y);
+  fxText(x,y-26,(lateBoost?'⭐⭐ ':'')+TYPES[k].e+' '+TYPES[k].n,'#fff');
+  if(T.player) beep(lateBoost?880:660,.1,'triangle',.06);
   tryMerge(T);
 }
 
@@ -1274,6 +1275,10 @@ function updateCoop(dt){
 
 function step(dt){
   G.t+=dt; G.time-=dt;
+  if(G.time<=120&&G.time>0&&!G.lateBoostAnnounced){
+    G.lateBoostAnnounced=true;
+    announce('⭐ الدقيقتان الأخيرتان!','كل الصناديق تعطي بطلًا مُدمجًا (مستوى 3) الآن');
+  }
   updateEvents(dt);
   if(G.coop) updateCoop(dt);
   readInput();
