@@ -125,6 +125,7 @@
   <div class="top">
     <div class="pill" id="timer">2:30<small>الوقت</small></div>
     <div class="pill" id="gems">0<small>جواهر</small></div>
+    <div class="pill" id="modPill" style="display:none"></div>
   </div>
   <div class="board" id="board"></div>
   <div class="squad" id="squad"></div>
@@ -308,6 +309,7 @@ const TYPES={
   titan   :{n:'العملاق الحجري', e:'🗿', c:'#795548', hp:520, dmg:25, rng:44, spd:.48, rate:1.5, wild:1},
   saboteur:{n:'المخرّب', e:'🧨', c:'#6d4c41', hp:110, dmg:55, rng:38, spd:1.22, rate:.85, wild:1, buildingOnly:1},
   elite   :{n:'المقاتل الشرس', e:'🐗', c:'#8d4e2a', hp:900, dmg:30, rng:42, spd:.65, rate:1.05, wild:1},
+  grove   :{n:'عملاق الغابة', e:'🌳', c:'#4e7942', hp:2200, dmg:26, rng:48, spd:.40, rate:1.3, wild:1},
 };
 const COOP_TEAMS=[
   {n:'البرية',   c:'#795548', wild:true},
@@ -322,6 +324,15 @@ const DUEL_TEAMS=[
 ];
 const DUEL_MATCH=150;
 const BUILDING_HP=6000;
+const MODIFIERS={
+  wrath:{n:'غضب الغابة', e:'🌿', d:'المنطقة الآمنة تتقلص بسرعة ومبكرًا — استعدوا للمواجهة'},
+  invasion:{n:'غزو الوحوش', e:'🐺', d:'موجات وحوش أكثر وأسرع طوال المباراة'},
+  mimic:{n:'صناديق الخداع', e:'🎁', d:'بعض الصناديق وحوش متنكرة! احذروا عند الفتح'},
+  giants:{n:'عمالقة الغابة', e:'🌲', d:'عمالقة ضخمة تجوب الخريطة — قوية لكن غنائمها هائلة'},
+  night:{n:'ليل الغابة', e:'🌙', d:'الرؤية محدودة والوحوش أقوى في الظلام'},
+  chaos:{n:'الفوضى', e:'🌀', d:'أحداث مفاجئة قصيرة كل فترة طوال المباراة'},
+};
+const MODIFIER_KEYS=Object.keys(MODIFIERS);
 const BOSSES=[
   { key:'boss',     name:'زعيم الغابة',        emoji:'🐲', hp:5000,  dmg:24, spd:.62, size:42,
     movesByPhase:[['slam','charge'],['slam','charge','barrage'],['slam','charge','barrage']] },
@@ -392,6 +403,14 @@ function newGame(mode,seed){
      nextChest:1.5,over:false,frenzy:0,eclipse:0,goldSpirit:null,mark:null,chestTurn:0,evQ:[],seed,
      coop,pvp,wave:0,waveT:4,boss:null,bossArena:null,bossSpawned:false,bossDown:false,bossTier:0,bossBreak:0,overtimeAnnounced:false,lateBoostAnnounced:false,lives:COOP_LIVES,won:false,shared:0,target:COOP_TARGET,hearts:[],speedOrbs:[],matchDuration:(pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH)),safeR:null};
   seedRNG(seed);
+  G.modifier=pick(MODIFIER_KEYS);
+  {
+    const mp=document.getElementById('modPill');
+    const mi=MODIFIERS[G.modifier];
+    mp.style.display='';
+    mp.innerHTML=mi.e+'<small>'+mi.n+'</small>';
+  }
+  setTimeout(()=>{ const mi=MODIFIERS[G.modifier]; announce(mi.e+' معدّل المباراة: '+mi.n, mi.d); },900);
   // الأحداث العشوائية (نفسها للاثنين لأن البذرة موحّدة)
   {
     const keys=['rain','wave','mega','frenzy','eclipse','elite','goldenspirit'];
@@ -490,7 +509,8 @@ function spawnChest(big=false,fx=null,fy=null,superC=false){
       x=p.x; y=p.y;
     }else [x,y]=randIsl(180);
   }
-  G.chests.push({x,y,big:big||superC,super:superC,got:false,t:0});
+  const isMimic=!big&&!superC&&G.modifier==='mimic'&&RND()<.3;
+  G.chests.push({x,y,big:big||superC,super:superC,got:false,t:0,isMimic});
 }
 
 // ─────────────────────────── الوحدات ───────────────────────────
@@ -507,7 +527,7 @@ function killUnit(u){
   fxPop(u.x,u.y,TYPES[u.type].c);
   if(u.eliteBounty){ spawnChest(true,u.x,u.y); fxRing(u.x,u.y,'#ffd54f'); }
   if(u.T.wild){
-    let n=u.type==='brute'?12:(u.eliteBounty?22:4);
+    let n=u.type==='grove'?32:u.type==='brute'?12:(u.eliteBounty?22:4);
     if(G.eclipse>0) n=Math.round(n*1.5);
     dropGems(u.x,u.y,n);
   }
@@ -704,7 +724,7 @@ function updateUnits(dt){
       if(inLeash){
         if(d>reach){ desired=[tx,ty]; }
         else if(u.cd<=0){
-          let dmg=u.dmg*(u.tgt.isRes&&t.gather?t.gather:1)*(u.T.wild&&G.eclipse>0?1.4:1);
+          let dmg=u.dmg*(u.tgt.isRes&&t.gather?t.gather:1)*(u.T.wild&&(G.eclipse>0||G.modifier==='night')?1.4:1);
           if(t.shot){
             G.shots.push({x:u.x,y:u.y-u.size,tgt:u.tgt,dmg,splash:t.splash||0,c:t.c,sp:430,T:u.T,src:u,
               spr:t.pj||'orb',ang:0});
@@ -725,7 +745,7 @@ function updateUnits(dt){
     }
     // حركة
     let aura=0; for(const a of u.T.units) if(!a.dead&&TYPES[a.type].aura) aura+=TYPES[a.type].aura;
-    const sp=LEAD_SPD*t.spd*(1.18+Math.min(aura,.25))*(u.T.dash>0?1.75:1)*(u.T.wild&&G.eclipse>0?1.3:1);
+    const sp=LEAD_SPD*t.spd*(1.18+Math.min(aura,.25))*(u.T.dash>0?1.75:1)*(u.T.wild&&(G.eclipse>0||G.modifier==='night')?1.3:1);
     dx=desired[0]-u.x; dy=desired[1]-u.y;
     const dd=Math.hypot(dx,dy);
     if(dd>3){ u.vx=(dx/dd)*sp; u.vy=(dy/dd)*sp; }
@@ -865,14 +885,16 @@ function updateSpeedOrbs(dt){
 }
 const ZONE_DELAY=60, ZONE_MIN_R=280;
 function updateSafeZone(dt){
+  const wrath=G.modifier==='wrath';
+  const zoneDelay=wrath?22:ZONE_DELAY, zoneMinR=wrath?190:ZONE_MIN_R;
   const elapsed=G.matchDuration-G.time;
-  if(elapsed<ZONE_DELAY){ G.safeR=null; return; }
-  const span=Math.max(1,G.matchDuration-ZONE_DELAY);
-  const p=clamp((elapsed-ZONE_DELAY)/span,0,1);
+  if(elapsed<zoneDelay){ G.safeR=null; return; }
+  const span=Math.max(1,G.matchDuration-zoneDelay);
+  const p=clamp((elapsed-zoneDelay)/span,0,1);
   const fullR=MAP*.42;
   const wasNull=G.safeR===null;
-  G.safeR=fullR-(fullR-ZONE_MIN_R)*p;
-  if(wasNull) announce('🌫️ الغابة تضيق!','ابتعدوا عن الحافة أو ستتضرروا بمرور الوقت');
+  G.safeR=fullR-(fullR-zoneMinR)*p;
+  if(wasNull) announce(wrath?'🌿 غضب الغابة يبدأ مبكرًا!':'🌫️ الغابة تضيق!','ابتعدوا عن الحافة أو ستتضرروا بمرور الوقت');
   for(let k=1;k<G.teams.length;k++){
     const T=G.teams[k]; if(T.dead||T.remoteDisconnected) continue;
     const d=Math.hypot(T.x-ISL.cx,T.y-ISL.cy);
@@ -880,13 +902,21 @@ function updateSafeZone(dt){
       T.zoneT=(T.zoneT||0)+dt;
       if(T.zoneT>=1){
         T.zoneT=0;
-        for(const u of T.units){ if(u.dead) continue; hurt(u,Math.max(6,u.max*.08),null); }
+        for(const u of T.units){ if(u.dead) continue; hurt(u,Math.max(6,u.max*(wrath?.12:.08)),null); }
         if(T.player) fxText(T.x,T.y-32,'⚠️ خارج المنطقة الآمنة!','#ff5252');
       }
     } else T.zoneT=0;
   }
 }
+function springMimic(T,x,y){
+  const type=RND()<.4?'elite':'brute';
+  const u=addUnit(G.teams[0],type,1,x,y);
+  if(u){ u.eliteBounty=true; u.tgt=T.units.find(a=>!a.dead)||null; }
+  fxSpr('boom',x,y,26,64,.42); fxRing(x,y,'#ff5252');
+  if(T.player){ fxText(x,y-30,'😈 صندوق مخادع!','#ff5252'); beep(140,.22,'sawtooth',.08); }
+}
 function chestCost(T){
+  if(G.freeChestsT>0) return 0;
   const k=(T.chestCount||0)+1;
   let base;
   if(k<=1) base=0;
@@ -921,7 +951,8 @@ function updateChests(dt){
         }
         T.gems-=cost; T.chestCount=(T.chestCount||0)+1;
         G.chests.splice(i,1);
-        openChest(T,c.x,c.y,c);
+        if(c.isMimic) springMimic(T,c.x,c.y);
+        else openChest(T,c.x,c.y,c);
         break;
       }
     }
@@ -1138,6 +1169,50 @@ function botThink(T){
   const wp=randIsl(120); T.gx=wp[0]; T.gy=wp[1];
 }
 
+const CHAOS_SUBEVENTS=[
+  ()=>{
+    G.freeChestsT=10;
+    announce('🎁 الصناديق مجانية!','لمدة ١٠ ثوانٍ — افتحوا بلا تكلفة');
+  },
+  ()=>{
+    const [x,y]=randIsl(220);
+    for(let i=0;i<22;i++){ const a=rnd(0,TAU), d=Math.sqrt(Math.random())*140;
+      const g={x:x+Math.cos(a)*d,y:y+Math.sin(a)*d,vx:0,vy:0,t:0,ph:rnd(0,TAU)};
+      pullIn(g,10); G.gems.push(g); }
+    fxRing(x,y,'#ffd54f');
+    announce('🌧️ مطر غنائم مفاجئ!','اجمعوا بسرعة قبل أن يتبعثر');
+  },
+  ()=>{
+    const [x,y]=randIsl(200);
+    const u=addUnit(G.teams[0],'elite',1,x,y);
+    if(u) u.eliteBounty=true;
+    fxSpr('portal',x,y,26,90,.8);
+    announce('👀 وحش نادر ظهر فجأة!','قتله = مكافأة كبيرة');
+  },
+];
+function updateChaos(dt){
+  if(G.freeChestsT>0) G.freeChestsT-=dt;
+  if(G.modifier!=='chaos') return;
+  G.chaosT=(G.chaosT===undefined?rnd(14,20):G.chaosT)-dt;
+  if(G.chaosT<=0){
+    G.chaosT=rnd(18,26);
+    pick(CHAOS_SUBEVENTS)();
+    beep(500,.14,'triangle',.06);
+  }
+}
+
+function updateForestGiants(dt){
+  if(G.modifier!=='giants') return;
+  G.groveT=(G.groveT===undefined?3:G.groveT)-dt;
+  if(G.groveT>0) return;
+  const alive=G.teams[0].units.filter(u=>!u.dead&&u.type==='grove').length;
+  if(alive>=2){ G.groveT=4; return; }
+  G.groveT=rnd(5,8);
+  const [x,y]=randIsl(220);
+  const u=addUnit(G.teams[0],'grove',1,x,y);
+  if(u){ u.size=54; fxSpr('portal',x,y,30,110,.9); }
+}
+
 function updateGoldSpirit(dt){
   const s=G.goldSpirit; if(!s) return;
   s.t-=dt;
@@ -1179,10 +1254,11 @@ function respawnResources(dt){
 
 function respawnWild(dt){
   if(G.coop) return; // في التعاوني الموجات هي مصدر الوحوش
+  const invasion=G.modifier==='invasion';
   const wild=G.teams[0];
   G.wildT=(G.wildT||0)-dt;
-  if(G.wildT>0||wild.units.length>=11) return;
-  G.wildT=rnd(9,14);
+  if(G.wildT>0||wild.units.length>=(invasion?18:11)) return;
+  G.wildT=invasion?rnd(4,6):rnd(9,14);
   for(let k=0;k<14;k++){
     const [x,y]=randIsl(140);
     let ok=true;
@@ -1270,7 +1346,7 @@ function spawnWave(){
   const wild=G.teams[0];
   const alive=wild.units.filter(u=>!u.dead&&!TYPES[u.type].boss).length;
   // موجات ضخمة ومتزايدة: 20 ثم +12 لكل موجة، مع سقف 96 وحشاً نشطاً.
-  const desired=Math.min(30 + (G.wave-1)*16, 125);
+  const desired=Math.min((G.modifier==='invasion'?42:30) + (G.wave-1)*16, 125);
   const n=Math.max(0,Math.min(desired,WILD_CAP-alive));
   if(n<=0){ announce('🌊 الموجة '+G.wave,'الساحة ممتلئة — استمروا بقتل الوحوش!'); return; }
   for(let i=0;i<n;i++){
@@ -1453,7 +1529,7 @@ function updateCoop(dt){
   }
   if(!G.bossSpawned){
     G.waveT-=dt;
-    if(G.waveT<=0&&G.time>3){ spawnWave(); G.waveT=WAVE_EVERY; }
+    if(G.waveT<=0&&G.time>3){ spawnWave(); G.waveT=G.modifier==='invasion'?WAVE_EVERY*.55:WAVE_EVERY; }
   }
   if(G.boss&&!G.boss.dead){ G.mark={x:G.boss.x,y:G.boss.y,t:3}; updateBossAI(dt); }
 }
@@ -1477,6 +1553,8 @@ function step(dt){
   updateSpeedOrbs(dt);
   updateSaboteurs(dt);
   updateGoldSpirit(dt);
+  updateForestGiants(dt);
+  updateChaos(dt);
   updateFx(dt);
   respawnResources(dt);
   respawnWild(dt);
@@ -1565,6 +1643,23 @@ function draw(){
     ctx.strokeStyle='#ba68c8'; ctx.lineWidth=6; ctx.globalAlpha=.8; ctx.setLineDash([16,10]);
     ctx.beginPath(); ctx.arc(ISL.cx,ISL.cy,G.safeR,0,TAU); ctx.stroke();
     ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  if(G.modifier==='night'){
+    const me=ME(), R=210;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(cam.x-100,cam.y-100,vw+200,vh+200);
+    ctx.arc(me.x,me.y,R,0,TAU,true);
+    ctx.clip('evenodd');
+    ctx.fillStyle='rgba(4,8,20,.88)';
+    ctx.fillRect(cam.x-100,cam.y-100,vw+200,vh+200);
+    ctx.restore();
+    ctx.save();
+    const ng=ctx.createRadialGradient(me.x,me.y,R*.6,me.x,me.y,R);
+    ng.addColorStop(0,'rgba(4,8,20,0)'); ng.addColorStop(1,'rgba(4,8,20,.55)');
+    ctx.fillStyle=ng; ctx.beginPath(); ctx.arc(me.x,me.y,R,0,TAU); ctx.fill();
     ctx.restore();
   }
 
@@ -2166,6 +2261,12 @@ function drawExtraCharacter(type,x,y,h,face,hit){
     ctx.beginPath(); ctx.moveTo(14,-52); ctx.lineTo(24,-40); ctx.lineTo(10,-46); ctx.closePath(); ctx.fill();
     ctx.strokeStyle='#5d4037'; ctx.lineWidth=10; ctx.beginPath(); ctx.moveTo(30,-20); ctx.lineTo(52,10); ctx.stroke();
     ctx.fillStyle='#795548'; ctx.beginPath(); ctx.arc(52,10,11,0,TAU); ctx.fill();
+  }else if(type==='grove'){
+    ctx.fillStyle=flash?'#fff':'#6d4c2f'; ctx.beginPath(); ctx.moveTo(-26,30); ctx.quadraticCurveTo(-34,-30,-18,-70); ctx.quadraticCurveTo(0,-84,18,-70); ctx.quadraticCurveTo(34,-30,26,30); ctx.closePath(); ctx.fill();
+    ctx.fillStyle=flash?'#fff':'#4e7942'; ctx.beginPath(); ctx.arc(-22,-78,26,0,TAU); ctx.arc(20,-82,30,0,TAU); ctx.arc(0,-96,28,0,TAU); ctx.fill();
+    ctx.fillStyle='#ffca28'; ctx.beginPath(); ctx.arc(-9,-70,4,0,TAU); ctx.arc(9,-70,4,0,TAU); ctx.fill();
+    ctx.fillStyle='#3e2723'; ctx.beginPath(); ctx.arc(-9,-70,2,0,TAU); ctx.arc(9,-70,2,0,TAU); ctx.fill();
+    ctx.strokeStyle='#5d4037'; ctx.lineWidth=13; ctx.beginPath(); ctx.moveTo(-24,-10); ctx.lineTo(-50,40); ctx.moveTo(24,-10); ctx.lineTo(50,40); ctx.stroke();
   }else{
     ctx.fillStyle=flash?'#fff':'#795548'; ctx.beginPath(); ctx.roundRect(-42,-60,84,76,18); ctx.fill();
     ctx.fillStyle='#a1887f'; ctx.beginPath(); ctx.arc(0,-76,35,0,TAU); ctx.fill();
@@ -2207,7 +2308,7 @@ function drawUnit(u){
     else if(bossKey==='colossus') drawStoneColossus(0,u.size*.6-bob,h,bob,u.hitT);
     else if(bossKey==='spirit') drawAncientSpirit(0,u.size*.6-bob,h,bob,u.hitT);
     else drawFinalBoss(0,u.size*.6-bob,h,bob,u.hitT);
-  } else if(['knight','druid','samurai','wolf','shaman','titan','saboteur','elite'].includes(u.type)){
+  } else if(['knight','druid','samurai','wolf','shaman','titan','saboteur','elite','grove'].includes(u.type)){
     drawExtraCharacter(u.type,0,u.size*.6-bob,h,u.face||1,u.hitT);
   } else {
     if((u.face||1)<0) ctx.scale(-1,1);
@@ -2608,10 +2709,10 @@ function makeSnap(){
   const U=[];
   for(const u of G.units){ if(u.dead) continue;
     U.push([u.id,u.T.i,HERO_KEYS.indexOf(u.type)>=0?HERO_KEYS.indexOf(u.type):
-      (u.type==='slime'?20:u.type==='brute'?21:u.type==='boss'?22:u.type==='wolf'?23:u.type==='shaman'?24:u.type==='titan'?25:u.type==='saboteur'?26:u.type==='elite'?27:26),
+      (u.type==='slime'?20:u.type==='brute'?21:u.type==='boss'?22:u.type==='wolf'?23:u.type==='shaman'?24:u.type==='titan'?25:u.type==='saboteur'?26:u.type==='elite'?27:u.type==='grove'?28:26),
       u.lvl,Math.round(u.x),Math.round(u.y),Math.round(u.hp),Math.round(u.max),u.face||1]); }
   const TS=G.teams.slice(1).map(T=>[Math.round(T.x),Math.round(T.y),T.gems,T.dead?1:0,Math.round(T.dashCd*10)]);
-  const CH=G.chests.map(c=>[Math.round(c.x),Math.round(c.y),c.big?1:0,c.super?1:0]);
+  const CH=G.chests.map(c=>[Math.round(c.x),Math.round(c.y),c.big?1:0,c.super?1:0,c.isMimic?1:0]);
   const HT=(G.hearts||[]).map(h=>[Math.round(h.x),Math.round(h.y)]);
   const SO=(G.speedOrbs||[]).map(o=>[Math.round(o.x),Math.round(o.y)]);
   const GM=G.gems.map(g=>[Math.round(g.x),Math.round(g.y)]);
@@ -2632,7 +2733,7 @@ function makeSnap(){
           GS:G.goldSpirit?[Math.round(G.goldSpirit.x),Math.round(G.goldSpirit.y),Math.round(G.goldSpirit.t*10)]:null,
           U,TS,CH,GM,RS,HT,SO};
 }
-const SNAPKEY=[...HERO_KEYS,'','','','','','','','','slime','brute','boss','wolf','shaman','titan','saboteur','elite'];
+const SNAPKEY=[...HERO_KEYS,'','','','','','','','','slime','brute','boss','wolf','shaman','titan','saboteur','elite','grove'];
 function applySnap(s){
   if(!G||!G.coop) return;
   G.time=s.t/10; G.wave=s.w; G.lives=s.l; G.shared=s.sh; G.bossDown=!!s.bd; G.bossTier=s.bt||0;
@@ -2663,7 +2764,7 @@ function applySnap(s){
   G.units=[...NET.ghosts.values()];
   G.teams.forEach(T=>T.units=[]);
   for(const u of G.units) u.T.units.push(u);
-  G.chests=s.CH.map(c=>({x:c[0],y:c[1],big:!!c[2],super:!!c[3],t:G.t*3}));
+  G.chests=s.CH.map(c=>({x:c[0],y:c[1],big:!!c[2],super:!!c[3],isMimic:!!c[4],t:G.t*3}));
   G.gems=s.GM.map(g=>({x:g[0],y:g[1],vx:0,vy:0,t:1,ph:rnd(0,TAU)}));
   G.hearts=(s.HT||[]).map(h=>({x:h[0],y:h[1],t:0,ph:rnd(0,TAU)}));
   G.speedOrbs=(s.SO||[]).map(o=>({x:o[0],y:o[1],t:0,ph:rnd(0,TAU)}));
