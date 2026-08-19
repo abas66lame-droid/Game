@@ -338,7 +338,7 @@ const TYPES={
 };
 const LEGENDARY_KEYS=['timemage','babydragon','thunderspirit','phantom','guardian'];
 function heroPool(){
-  if(G.modifier==='legendary') return LEGENDARY_KEYS;
+  if(hasMod('legendary')) return LEGENDARY_KEYS;
   if(G.time<=120) return HERO_KEYS.concat(LEGENDARY_KEYS);
   return HERO_KEYS;
 }
@@ -367,6 +367,7 @@ const MODIFIERS={
   legendary:{n:'الأبطال الخارقون', e:'🌟', d:'كل الصناديق تعطي 5 أبطال أسطوريين بقدرات جنونية فقط طول المباراة'},
 };
 const MODIFIER_KEYS=Object.keys(MODIFIERS);
+function hasMod(k){ return G.modifier===k||G.modifier2===k; }
 const BOSSES=[
   { key:'boss',     name:'زعيم الغابة',        emoji:'🐲', hp:5000,  dmg:24, spd:.62, size:42,
     movesByPhase:[['slam','charge'],['slam','charge','barrage'],['slam','charge','barrage']] },
@@ -428,21 +429,23 @@ let G=null, running=false, last=0, acc=0;
 let MODE='solo';   // 'solo' أو 'coop'
 let MYTEAM=1;      // رقم فريقي (٢ إذا كنت الضيف بالتعاوني)
 
-function newGame(mode,seed){
+function newGame(mode,seed,forcedMods){
   MODE=mode||'solo';
   const pvp=MODE==='duel';
   const coop=MODE==='coop'||pvp;
   seed=seed||((Math.random()*1e9)>>>0);
   G={t:0,time:pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH),uid:1,teams:[],units:[],res:[],chests:[],gems:[],shots:[],fx:[],
      nextChest:1.5,over:false,frenzy:0,eclipse:0,goldSpirit:null,cannonBuilt:false,mark:null,chestTurn:0,evQ:[],seed,
-     coop,pvp,wave:0,waveT:4,boss:null,bossArena:null,bossSpawned:false,bossDown:false,bossTier:0,bossBreak:0,overtimeAnnounced:false,lateBoostAnnounced:false,lives:COOP_LIVES,won:false,shared:0,target:COOP_TARGET,hearts:[],speedOrbs:[],matchDuration:(pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH)),safeR:null};
+     coop,pvp,wave:0,waveT:4,boss:null,bossArena:null,bossSpawned:false,bossDown:false,bossTier:0,bossBreak:0,overtimeAnnounced:false,lateBoostAnnounced:false,lives:COOP_LIVES,won:false,shared:0,target:COOP_TARGET,hearts:[],speedOrbs:[],matchDuration:(pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH)),safeR:null,modifier2:null};
   seedRNG(seed);
-  G.modifier=pick(MODIFIER_KEYS);
+  const rolledMod=pick(MODIFIER_KEYS);
+  if(forcedMods&&forcedMods.length){ G.modifier=forcedMods[0]; G.modifier2=forcedMods[1]||null; }
+  else{ G.modifier=rolledMod; G.modifier2=null; }
   {
     const mp=document.getElementById('modPill');
-    const mi=MODIFIERS[G.modifier];
+    const mods=[G.modifier,G.modifier2].filter(Boolean).map(k=>MODIFIERS[k]);
     mp.style.display='';
-    mp.innerHTML=mi.e+'<small>'+mi.n+'</small>';
+    mp.innerHTML=mods.map(mi=>mi.e+'<small>'+mi.n+'</small>').join(' ');
   }
   // الأحداث العشوائية (نفسها للاثنين لأن البذرة موحّدة)
   {
@@ -544,7 +547,7 @@ function spawnChest(big=false,fx=null,fy=null,superC=false){
       x=p.x; y=p.y;
     }else [x,y]=randIsl(180);
   }
-  const isMimic=!big&&!superC&&G.modifier==='mimic'&&RND()<.42;
+  const isMimic=!big&&!superC&&hasMod('mimic')&&RND()<.42;
   G.chests.push({x,y,big:big||superC,super:superC,got:false,t:0,isMimic});
 }
 
@@ -572,7 +575,7 @@ function applySpecialOnHit(src,tgt){
 }
 function killUnit(u,src){
   if(u.dead) return;
-  if(G.modifier==='pets'&&u.T.wild&&src&&src.T&&!src.T.wild&&!TYPES[u.type].boss&&!TYPES[u.type].buildingOnly&&u.type!=='elite'&&u.type!=='grove'){
+  if(hasMod('pets')&&u.T.wild&&src&&src.T&&!src.T.wild&&!TYPES[u.type].boss&&!TYPES[u.type].buildingOnly&&u.type!=='elite'&&u.type!=='grove'){
     const oldT=u.T, idx=oldT.units.indexOf(u);
     if(idx>=0) oldT.units.splice(idx,1);
     u.T=src.T; src.T.units.push(u);
@@ -818,7 +821,7 @@ function updateUnits(dt){
       if(inLeash){
         if(d>reach){ desired=[tx,ty]; }
         else if(u.cd<=0){
-          let dmg=u.dmg*(u.tgt.isRes&&t.gather?t.gather:1)*(u.T.wild&&(G.eclipse>0||G.modifier==='night')?1.4:1);
+          let dmg=u.dmg*(u.tgt.isRes&&t.gather?t.gather:1)*(u.T.wild&&(G.eclipse>0||hasMod('night'))?1.4:1);
           if(u.ambush){ dmg*=2.2; u.ambush=false; fxText(u.x,u.y-30,'💥 كمين!','#ffd54f'); }
           if(t.shot){
             G.shots.push({x:u.x,y:u.y-u.size,tgt:u.tgt,dmg,splash:t.splash||0,c:t.c,sp:430,T:u.T,src:u,
@@ -840,7 +843,7 @@ function updateUnits(dt){
     }
     // حركة
     let aura=0; for(const a of u.T.units) if(!a.dead&&TYPES[a.type].aura) aura+=TYPES[a.type].aura;
-    const sp=LEAD_SPD*t.spd*(1.18+Math.min(aura,.25))*(u.T.dash>0?1.75:1)*(u.T.wild&&(G.eclipse>0||G.modifier==='night')?1.3:1)*(u.slowT>0?.5:1);
+    const sp=LEAD_SPD*t.spd*(1.18+Math.min(aura,.25))*(u.T.dash>0?1.75:1)*(u.T.wild&&(G.eclipse>0||hasMod('night'))?1.3:1)*(u.slowT>0?.5:1);
     dx=desired[0]-u.x; dy=desired[1]-u.y;
     const dd=Math.hypot(dx,dy);
     if(dd>3){ u.vx=(dx/dd)*sp; u.vy=(dy/dd)*sp; }
@@ -981,7 +984,7 @@ function updateSpeedOrbs(dt){
 }
 const ZONE_DELAY=60, ZONE_MIN_R=280;
 function updateSafeZone(dt){
-  const wrath=G.modifier==='wrath';
+  const wrath=hasMod('wrath');
   const zoneDelay=wrath?22:ZONE_DELAY, zoneMinR=wrath?190:ZONE_MIN_R;
   const elapsed=G.matchDuration-G.time;
   if(elapsed<zoneDelay){ G.safeR=null; return; }
@@ -1302,7 +1305,7 @@ const CHAOS_SUBEVENTS=[
 ];
 function updateChaos(dt){
   if(G.freeChestsT>0) G.freeChestsT-=dt;
-  if(G.modifier!=='chaos') return;
+  if(!hasMod('chaos')) return;
   G.chaosT=(G.chaosT===undefined?rnd(8,12):G.chaosT)-dt;
   if(G.chaosT<=0){
     G.chaosT=rnd(12,18);
@@ -1344,7 +1347,7 @@ function updateLegendaryAbilities(dt){
 }
 
 function updateForestGiants(dt){
-  if(G.modifier!=='giants') return;
+  if(!hasMod('giants')) return;
   const tx=(G.building&&!G.building.dead)?G.building.x:ISL.cx, ty=(G.building&&!G.building.dead)?G.building.y:ISL.cy;
   for(const u of G.teams[0].units){ if(!u.dead&&u.type==='grove'){ u.ax=tx; u.ay=ty; } }
   G.groveT=(G.groveT===undefined?1.5:G.groveT)-dt;
@@ -1398,7 +1401,7 @@ function respawnResources(dt){
 
 function respawnWild(dt){
   if(G.coop) return; // في التعاوني الموجات هي مصدر الوحوش
-  const invasion=G.modifier==='invasion';
+  const invasion=hasMod('invasion');
   const wild=G.teams[0];
   G.wildT=(G.wildT||0)-dt;
   if(G.wildT>0||wild.units.length>=(invasion?26:11)) return;
@@ -1500,7 +1503,7 @@ function spawnWave(){
   const wild=G.teams[0];
   const alive=wild.units.filter(u=>!u.dead&&!TYPES[u.type].boss).length;
   // موجات متزايدة موزعة على كل الخريطة: المنتصف خفيف والأطراف قوية.
-  const desired=Math.min((G.modifier==='invasion'?46:32) + (G.wave-1)*11, 92);
+  const desired=Math.min((hasMod('invasion')?46:32) + (G.wave-1)*11, 92);
   const n=Math.max(0,Math.min(desired,WILD_CAP-alive));
   if(n<=0){ announce('🌊 الموجة '+G.wave,'الساحة ممتلئة — استمروا بقتل الوحوش!'); return; }
   for(let i=0;i<n;i++){
@@ -1682,7 +1685,7 @@ function updateCoop(dt){
   }
   if(!G.bossSpawned){
     G.waveT-=dt;
-    if(G.waveT<=0&&G.time>3){ spawnWave(); G.waveT=G.modifier==='invasion'?WAVE_EVERY*.4:WAVE_EVERY; }
+    if(G.waveT<=0&&G.time>3){ spawnWave(); G.waveT=hasMod('invasion')?WAVE_EVERY*.4:WAVE_EVERY; }
   }
   if(G.boss&&!G.boss.dead){ G.mark={x:G.boss.x,y:G.boss.y,t:3}; updateBossAI(dt); }
 }
@@ -1800,7 +1803,8 @@ function draw(){
     ctx.restore();
   }
 
-  if(G.modifier==='night'){
+  const activeMods=[G.modifier,G.modifier2].filter(Boolean);
+  if(activeMods.includes('night')){
     const me=ME(), R=210;
     ctx.save();
     ctx.beginPath();
@@ -1815,22 +1819,26 @@ function draw(){
     ng.addColorStop(0,'rgba(4,8,20,0)'); ng.addColorStop(1,'rgba(4,8,20,.55)');
     ctx.fillStyle=ng; ctx.beginPath(); ctx.arc(me.x,me.y,R,0,TAU); ctx.fill();
     ctx.restore();
-  }else if(G.modifier){
+  }
+  {
     const vigColors={wrath:'20,70,15',invasion:'120,10,10',mimic:'90,20,110',giants:'20,55,18'};
     const cx=cam.x+vw/2, cy=cam.y+vh/2, rad=Math.hypot(vw,vh)/2;
-    if(G.modifier==='chaos'){
-      const hue=(G.t*40)%360;
-      ctx.save();
-      const cg=ctx.createRadialGradient(cx,cy,rad*.3,cx,cy,rad);
-      cg.addColorStop(0,'hsla('+hue+',80%,50%,0)'); cg.addColorStop(1,'hsla('+hue+',80%,50%,.4)');
-      ctx.fillStyle=cg; ctx.fillRect(cam.x-100,cam.y-100,vw+200,vh+200);
-      ctx.restore();
-    }else if(vigColors[G.modifier]){
-      ctx.save();
-      const vg=ctx.createRadialGradient(cx,cy,rad*.3,cx,cy,rad);
-      vg.addColorStop(0,'rgba('+vigColors[G.modifier]+',0)'); vg.addColorStop(1,'rgba('+vigColors[G.modifier]+',.85)');
-      ctx.fillStyle=vg; ctx.fillRect(cam.x-100,cam.y-100,vw+200,vh+200);
-      ctx.restore();
+    for(const m of activeMods){
+      if(m==='night') continue;
+      if(m==='chaos'){
+        const hue=(G.t*40)%360;
+        ctx.save();
+        const cg=ctx.createRadialGradient(cx,cy,rad*.3,cx,cy,rad);
+        cg.addColorStop(0,'hsla('+hue+',80%,50%,0)'); cg.addColorStop(1,'hsla('+hue+',80%,50%,.4)');
+        ctx.fillStyle=cg; ctx.fillRect(cam.x-100,cam.y-100,vw+200,vh+200);
+        ctx.restore();
+      }else if(vigColors[m]){
+        ctx.save();
+        const vg=ctx.createRadialGradient(cx,cy,rad*.3,cx,cy,rad);
+        vg.addColorStop(0,'rgba('+vigColors[m]+',0)'); vg.addColorStop(1,'rgba('+vigColors[m]+',.85)');
+        ctx.fillStyle=vg; ctx.fillRect(cam.x-100,cam.y-100,vw+200,vh+200);
+        ctx.restore();
+      }
     }
   }
 
@@ -2790,7 +2798,7 @@ async function netConnect(roomCode, desiredRole){
     if(NET.role!=='host' && NET.role!=='guest') NET.role=first?'host':'guest';
     if(NET.role==='guest') MYTEAM=2; else if(NET.role==='host') MYTEAM=1;
     netStatus(NET.peerOn?(first?'أنت المضيف · صديقك متصل':'متصل مع صديقك'):'الغرفة جاهزة · بانتظار صديقك...');
-    if(NET.role==='host'&&G&&G.coop&&running) netSend('seed',{seed:G.seed,time:G.time,mode:MODE});
+    if(NET.role==='host'&&G&&G.coop&&running) netSend('seed',{seed:G.seed,time:G.time,mode:MODE,mods:[G.modifier,G.modifier2].filter(Boolean)});
   };
 
   const handleBroadcast=(payload)=>{
@@ -2813,7 +2821,7 @@ async function netConnect(roomCode, desiredRole){
     if(evn==='seed'){
       if(NET.role!=='guest') return;
       if(!G||!G.coop||G.seed!==data.seed){
-        MYTEAM=2; newGame(data.mode||'coop',data.seed);
+        MYTEAM=2; newGame(data.mode||'coop',data.seed,data.mods);
         elStart.classList.add('hide'); elEnd.classList.add('hide');
         showModIntroThenStart();
       }
@@ -3079,10 +3087,10 @@ function audioOn(){ try{ if(!AC) AC=new (window.AudioContext||window.webkitAudio
 
 const elModIntro=document.getElementById('modIntro');
 function showModIntroThenStart(){
-  const mi=MODIFIERS[G.modifier];
-  document.getElementById('modIntroEmoji').textContent=mi.e;
-  document.getElementById('modIntroName').textContent=mi.n;
-  document.getElementById('modIntroDesc').textContent=mi.d;
+  const mods=[G.modifier,G.modifier2].filter(Boolean).map(k=>MODIFIERS[k]);
+  document.getElementById('modIntroEmoji').textContent=mods.map(m=>m.e).join(' ');
+  document.getElementById('modIntroName').textContent=mods.map(m=>m.n).join(' + ');
+  document.getElementById('modIntroDesc').textContent=mods.map(m=>m.d).join(' — ');
   elModIntro.classList.remove('hide');
   clearTimeout(elModIntro._t);
   elModIntro._t=setTimeout(()=>{
@@ -3091,9 +3099,9 @@ function showModIntroThenStart(){
     audioOn();
   },5000);
 }
-function start(mode,seed){
+function start(mode,seed,forcedMods){
   lastMode=mode||lastMode;
-  newGame(lastMode,seed);
+  newGame(lastMode,seed,forcedMods);
   elStart.classList.add('hide'); elEnd.classList.add('hide');
   showModIntroThenStart();
 }
@@ -3208,6 +3216,34 @@ function showRoomDialog(){
   });
 }
 
+function pickModifiersDialog(){
+  return new Promise(resolve=>{
+    const selected=[];
+    const o=fpOverlay(`<div class="fpTitle">🎲 اختر مودفاير المباراة</div><div class="fpSub">اختر مودفايرًا واحدًا أو اثنين، أو اتركها عشوائية.</div><div id="modList" style="display:flex;flex-direction:column;gap:8px;margin:10px 0;max-height:320px;overflow-y:auto"></div><div class="fpRow"><button id="modRandom" type="button" class="fpBtn fpGray">🎲 عشوائي</button><button id="modConfirm" type="button" class="fpBtn fpGreen">✅ بدء المباراة</button></div>`);
+    const list=o.querySelector('#modList');
+    list.innerHTML=MODIFIER_KEYS.map(k=>{
+      const m=MODIFIERS[k];
+      return `<div class="modOpt" data-k="${k}" style="cursor:pointer;text-align:right;border:2px solid rgba(255,255,255,.14);border-radius:12px;padding:10px 12px;transition:.15s"><div style="font-weight:900;font-size:15px">${m.e} ${esc(m.n)}</div><div style="font-size:12px;opacity:.75;margin-top:3px">${esc(m.d)}</div></div>`;
+    }).join('');
+    const rows=[...list.querySelectorAll('.modOpt')];
+    const paint=()=>{
+      rows.forEach(r=>{
+        const on=selected.includes(r.dataset.k);
+        r.style.borderColor=on?'#22b573':'rgba(255,255,255,.14)';
+        r.style.background=on?'rgba(34,181,115,.16)':'transparent';
+      });
+    };
+    rows.forEach(r=>r.onclick=()=>{
+      const k=r.dataset.k;
+      const idx=selected.indexOf(k);
+      if(idx>=0) selected.splice(idx,1);
+      else{ if(selected.length>=2) selected.shift(); selected.push(k); }
+      paint();
+    });
+    o.querySelector('#modRandom').onclick=()=>{ o.remove(); resolve([]); };
+    o.querySelector('#modConfirm').onclick=()=>{ o.remove(); resolve(selected.slice()); };
+  });
+}
 async function startOnlineRoom(choice,gameMode){
   gameMode=gameMode||'coop';
   audioOn();
@@ -3225,9 +3261,10 @@ async function startOnlineRoom(choice,gameMode){
       saveRoomHeartbeat(code);
       if(ROOM_HEART) clearInterval(ROOM_HEART); ROOM_HEART=setInterval(()=>saveRoomHeartbeat(code),5000);
       netMsg.innerHTML='غرفتك: <b style="font-size:22px;letter-spacing:4px">'+code+'</b><br><span style="opacity:.8">أصدقاؤك سيرون هذه الغرفة تلقائيًا.</span>';
+      const mods=await pickModifiersDialog();
       const s=(Math.random()*1e9)>>>0;
-      netSend('seed',{seed:s,mode:gameMode});
-      start(gameMode,s);
+      netSend('seed',{seed:s,mode:gameMode,mods});
+      start(gameMode,s,mods);
     }else{
       netMsg.innerHTML='متصل بالغرفة <b style="font-size:22px;letter-spacing:4px">'+code+'</b><br><span style="opacity:.8">بانتظار المضيف...</span>';
     }
