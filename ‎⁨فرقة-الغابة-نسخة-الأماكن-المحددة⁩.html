@@ -467,13 +467,13 @@ function newGame(mode,seed){
 function buildWorld(){
   const far=(x,y,d)=>{ for(const r of G.res){ if((r.x-x)**2+(r.y-y)**2<d*d) return false; } return true; };
   const kinds=[
-    {k:'tree', hp:70,  size:22, gems:3, w:.46, sp:['tree1','tree2','tree3'], h:[66,72,78]},
-    {k:'rock', hp:150, size:24, gems:7, w:.24, sp:['rock1','rock2','rock3'], h:[56,44,54]},
-    {k:'bush', hp:26,  size:15, gems:1, w:.30, sp:['bush1','bush2'],         h:[40,42]},
+    {k:'tree', hp:48,  size:22, gems:3, w:.46, sp:['tree1','tree2','tree3'], h:[66,72,78]},
+    {k:'rock', hp:105, size:24, gems:7, w:.24, sp:['rock1','rock2','rock3'], h:[56,44,54]},
+    {k:'bush', hp:18,  size:15, gems:1, w:.30, sp:['bush1','bush2'],         h:[40,42]},
   ];
-  for(let i=0;i<280;i++){
+  for(let i=0;i<600;i++){
     const [x,y]=randIsl(70);
-    if(!far(x,y,110)) continue;
+    if(!far(x,y,65)) continue;
     let r=RND(), o=null, s=0;
     for(const kd of kinds){ s+=kd.w; if(r<=s){o=kd;break;} }
     o=o||kinds[0];
@@ -738,7 +738,7 @@ function buildingDestroyed(){
 }
 function countBonus(T){ let b=0; for(const u of T.units) if(!u.dead&&TYPES[u.type].bonus) b+=TYPES[u.type].bonus*u.lvl; return Math.min(b,4); }
 
-function slot(i){ const a=i*2.39996, r=15+8.5*Math.sqrt(i); return [Math.cos(a)*r,Math.sin(a)*r]; }
+function slot(i){ const a=i*2.39996, r=13+6*Math.sqrt(i); return [Math.cos(a)*r,Math.sin(a)*r]; }
 
 function updateUnits(dt){
   for(let i=G.units.length-1;i>=0;i--){
@@ -1313,7 +1313,7 @@ function respawnResources(dt){
   for(const r of G.res){
     if(!r.dead) continue;
     r.grow=(r.grow||0)+dt;
-    if(r.grow>18){ r.dead=false; r.hp=r.max; r.grow=0; r.pop=.4; }
+    if(r.grow>9){ r.dead=false; r.hp=r.max; r.grow=0; r.pop=.4; }
   }
 }
 
