@@ -307,6 +307,7 @@ const TYPES={
   shaman  :{n:'ساحر الوحوش', e:'👺', c:'#ab47bc', hp:180, dmg:18, rng:125, spd:.68, rate:1.2, shot:1, pj:'orb', splash:35, wild:1},
   titan   :{n:'العملاق الحجري', e:'🗿', c:'#795548', hp:520, dmg:25, rng:44, spd:.48, rate:1.5, wild:1},
   saboteur:{n:'المخرّب', e:'🧨', c:'#6d4c41', hp:110, dmg:55, rng:38, spd:1.22, rate:.85, wild:1, buildingOnly:1},
+  elite   :{n:'المقاتل الشرس', e:'🐗', c:'#8d4e2a', hp:900, dmg:30, rng:42, spd:.65, rate:1.05, wild:1},
 };
 const COOP_TEAMS=[
   {n:'البرية',   c:'#795548', wild:true},
@@ -388,16 +389,21 @@ function newGame(mode,seed){
   const coop=MODE==='coop'||pvp;
   seed=seed||((Math.random()*1e9)>>>0);
   G={t:0,time:pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH),uid:1,teams:[],units:[],res:[],chests:[],gems:[],shots:[],fx:[],
-     nextChest:1.5,over:false,frenzy:0,mark:null,chestTurn:0,evQ:[],seed,
+     nextChest:1.5,over:false,frenzy:0,eclipse:0,goldSpirit:null,mark:null,chestTurn:0,evQ:[],seed,
      coop,pvp,wave:0,waveT:4,boss:null,bossArena:null,bossSpawned:false,bossDown:false,bossTier:0,bossBreak:0,overtimeAnnounced:false,lateBoostAnnounced:false,lives:COOP_LIVES,won:false,shared:0,target:COOP_TARGET,hearts:[],speedOrbs:[],matchDuration:(pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH)),safeR:null};
   seedRNG(seed);
   // الأحداث العشوائية (نفسها للاثنين لأن البذرة موحّدة)
   {
-    const keys=['rain','wave','mega','frenzy'];
+    const keys=['rain','wave','mega','frenzy','eclipse','elite','goldenspirit'];
     for(let i=keys.length-1;i>0;i--){ const j=Math.floor(RND()*(i+1)); [keys[i],keys[j]]=[keys[j],keys[i]]; }
     const base=pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH);
-    const slots=[base-rnd(45,55),base-rnd(95,110),base-rnd(145,165)];
-    G.evQ=slots.map((at,i)=>({at,k:keys[i]}));
+    const startPad=28, endPad=22;
+    const span=Math.max(20,base-startPad-endPad);
+    const seg=span/keys.length;
+    G.evQ=keys.map((k,i)=>{
+      const elapsed=rnd(startPad+i*seg,startPad+(i+1)*seg);
+      return {at:base-elapsed,k};
+    });
   }
   (pvp?DUEL_TEAMS:(coop?COOP_TEAMS:TEAMS)).forEach((d,i)=>{
     G.teams.push({i,n:d.n,c:d.c,wild:!!d.wild,player:!!d.player,coop:!!d.coop,gems:0,units:[],
@@ -499,7 +505,12 @@ function addUnit(T,type,lvl,x,y){
 function killUnit(u){
   if(u.dead) return; u.dead=true;
   fxPop(u.x,u.y,TYPES[u.type].c);
-  if(u.T.wild) dropGems(u.x,u.y,u.type==='brute'?12:4);
+  if(u.eliteBounty){ spawnChest(true,u.x,u.y); fxRing(u.x,u.y,'#ffd54f'); }
+  if(u.T.wild){
+    let n=u.type==='brute'?12:(u.eliteBounty?22:4);
+    if(G.eclipse>0) n=Math.round(n*1.5);
+    dropGems(u.x,u.y,n);
+  }
   else dropGems(u.x,u.y,1);
 }
 
@@ -693,7 +704,7 @@ function updateUnits(dt){
       if(inLeash){
         if(d>reach){ desired=[tx,ty]; }
         else if(u.cd<=0){
-          let dmg=u.dmg*(u.tgt.isRes&&t.gather?t.gather:1);
+          let dmg=u.dmg*(u.tgt.isRes&&t.gather?t.gather:1)*(u.T.wild&&G.eclipse>0?1.4:1);
           if(t.shot){
             G.shots.push({x:u.x,y:u.y-u.size,tgt:u.tgt,dmg,splash:t.splash||0,c:t.c,sp:430,T:u.T,src:u,
               spr:t.pj||'orb',ang:0});
@@ -714,7 +725,7 @@ function updateUnits(dt){
     }
     // حركة
     let aura=0; for(const a of u.T.units) if(!a.dead&&TYPES[a.type].aura) aura+=TYPES[a.type].aura;
-    const sp=LEAD_SPD*t.spd*(1.18+Math.min(aura,.25))*(u.T.dash>0?1.75:1);
+    const sp=LEAD_SPD*t.spd*(1.18+Math.min(aura,.25))*(u.T.dash>0?1.75:1)*(u.T.wild&&G.eclipse>0?1.3:1);
     dx=desired[0]-u.x; dy=desired[1]-u.y;
     const dd=Math.hypot(dx,dy);
     if(dd>3){ u.vx=(dx/dd)*sp; u.vy=(dy/dd)*sp; }
@@ -1127,6 +1138,26 @@ function botThink(T){
   const wp=randIsl(120); T.gx=wp[0]; T.gy=wp[1];
 }
 
+function updateGoldSpirit(dt){
+  const s=G.goldSpirit; if(!s) return;
+  s.t-=dt;
+  if(s.t<=0){ G.goldSpirit=null; return; }
+  const isGuest=NET.on&&G.coop&&NET.role==='guest';
+  if(!isGuest){
+    s.moveT-=dt;
+    if(s.moveT<=0){ const [x,y]=randIsl(200); s.x=x; s.y=y; s.moveT=rnd(5,7); fxRing(x,y,'#ffd54f'); }
+  }
+  for(let k=1;k<G.teams.length;k++){
+    const T=G.teams[k]; if(T.dead||T.remoteDisconnected) continue;
+    if((T.x-s.x)**2+(T.y-s.y)**2<52*52){
+      T.gems+=40; grantHero(T,s.x,s.y,null);
+      fxText(s.x,s.y-34,'🌟 +40 💎','#ffd54f');
+      if(T.player) beep(1100,.22,'triangle',.09);
+      G.goldSpirit=null; return;
+    }
+  }
+}
+
 function updateFx(dt){
   for(let i=G.fx.length-1;i>=0;i--){
     const f=G.fx[i]; f.t+=dt;
@@ -1205,10 +1236,28 @@ const EVENTS={
     G.frenzy=20; beep(990,.14);
     announce('⚡ جنون الجواهر!','كل النهب ×2 لمدة ٢٠ ثانية');
   },
+  eclipse:()=>{
+    G.eclipse=15; beep(220,.22,'sawtooth',.09);
+    announce('🌑 كسوف!','الوحوش أقوى وأسرع لمدة ١٥ ثانية — لكن غنائمها مضاعفة');
+  },
+  elite:()=>{
+    const [x,y]=randIsl(200);
+    const u=addUnit(G.teams[0],'elite',1,x,y);
+    if(u) u.eliteBounty=true;
+    fxSpr('portal',x,y,26,90,.8); beep(160,.22,'sawtooth',.07);
+    announce('🐗 مقاتل شرس دخل الغابة!','اقتلوه = صندوق ذهبي مضمون');
+  },
+  goldenspirit:()=>{
+    const [x,y]=randIsl(200);
+    G.goldSpirit={x,y,t:26,moveT:rnd(5,7)};
+    fxRing(x,y,'#ffd54f'); beep(760,.16,'triangle',.08);
+    announce('🌟 روح ذهبية ظهرت!','أمسكوها بسرعة — تنتقل كل بضع ثواني!');
+  },
 };
 
 function updateEvents(dt){
   if(G.frenzy>0) G.frenzy-=dt;
+  if(G.eclipse>0) G.eclipse-=dt;
   if(G.mark&&G.mark.t>0) G.mark.t-=dt;
   while(G.evQ.length&&G.time<=G.evQ[0].at){
     const e=G.evQ.shift();
@@ -1427,6 +1476,7 @@ function step(dt){
   updateHearts(dt);
   updateSpeedOrbs(dt);
   updateSaboteurs(dt);
+  updateGoldSpirit(dt);
   updateFx(dt);
   respawnResources(dt);
   respawnWild(dt);
@@ -1490,6 +1540,7 @@ function draw(){
   for(const g of G.gems){ if(vis(g.x,g.y,40)) drawGem(g); }
   for(const h of G.hearts){ if(vis(h.x,h.y,44)) drawHeart(h); }
   for(const o of G.speedOrbs){ if(vis(o.x,o.y,44)) drawSpeedOrb(o); }
+  if(G.goldSpirit&&vis(G.goldSpirit.x,G.goldSpirit.y,180)) drawGoldSpirit();
   for(const c of G.chests){ if(vis(c.x,c.y,60)) drawChest(c); }
 
   const list=[];
@@ -1700,6 +1751,26 @@ function drawChest(c){
   }
   sprite('chest',c.x,c.y+8+b,38*S);
   if(c.big) sprite('star',c.x,c.y-30,20,'c');
+}
+
+function drawGoldSpirit(){
+  const s=G.goldSpirit; if(!s) return;
+  const b=Math.sin(G.t*4)*5;
+  ctx.globalAlpha=.32; sprite('shadow',s.x,s.y+10,40,'c'); ctx.globalAlpha=1;
+  ctx.save();
+  const beamG=ctx.createLinearGradient(s.x,s.y-160,s.x,s.y);
+  beamG.addColorStop(0,'rgba(255,213,79,0)'); beamG.addColorStop(1,'rgba(255,213,79,.4)');
+  ctx.fillStyle=beamG; ctx.beginPath();
+  ctx.moveTo(s.x-14,s.y-4); ctx.lineTo(s.x-3,s.y-160); ctx.lineTo(s.x+3,s.y-160); ctx.lineTo(s.x+14,s.y-4);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+  ctx.globalAlpha=.4+.2*Math.sin(G.t*5); ctx.fillStyle='#ffd54f';
+  ctx.beginPath(); ctx.arc(s.x,s.y-6,44,0,TAU); ctx.fill(); ctx.globalAlpha=1;
+  sprite('star',s.x,s.y-14+b,42,'c');
+  ctx.save(); ctx.globalAlpha=.6+.3*Math.sin(G.t*6);
+  for(let i=0;i<6;i++){ const a=G.t*2.2+i*TAU/6, r=48;
+    ctx.fillStyle='#fff59d'; ctx.beginPath(); ctx.arc(s.x+Math.cos(a)*r,s.y-10+Math.sin(a)*r*.55,3.2,0,TAU); ctx.fill(); }
+  ctx.restore();
 }
 
 function drawHeart(h){
@@ -2085,6 +2156,16 @@ function drawExtraCharacter(type,x,y,h,face,hit){
     ctx.fillStyle='#263238'; ctx.beginPath(); ctx.arc(24,-24,13,0,TAU); ctx.fill();
     ctx.strokeStyle='#ff8a65'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(24,-37); ctx.lineTo(30,-46); ctx.stroke();
     ctx.fillStyle='#ffca28'; ctx.beginPath(); ctx.arc(30,-46,3,0,TAU); ctx.fill();
+  }else if(type==='elite'){
+    ctx.fillStyle=flash?'#fff':'#8d4e2a'; ctx.beginPath(); ctx.ellipse(0,-32,38,32,0,0,TAU); ctx.fill();
+    ctx.fillStyle='#a8602f'; ctx.beginPath(); ctx.arc(0,-66,26,0,TAU); ctx.fill();
+    ctx.fillStyle='#ffeb3b'; ctx.beginPath(); ctx.arc(-9,-68,4,0,TAU); ctx.arc(9,-68,4,0,TAU); ctx.fill();
+    ctx.fillStyle='#263238'; ctx.beginPath(); ctx.arc(-9,-68,2,0,TAU); ctx.arc(9,-68,2,0,TAU); ctx.fill();
+    ctx.fillStyle='#fafafa';
+    ctx.beginPath(); ctx.moveTo(-14,-52); ctx.lineTo(-24,-40); ctx.lineTo(-10,-46); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(14,-52); ctx.lineTo(24,-40); ctx.lineTo(10,-46); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='#5d4037'; ctx.lineWidth=10; ctx.beginPath(); ctx.moveTo(30,-20); ctx.lineTo(52,10); ctx.stroke();
+    ctx.fillStyle='#795548'; ctx.beginPath(); ctx.arc(52,10,11,0,TAU); ctx.fill();
   }else{
     ctx.fillStyle=flash?'#fff':'#795548'; ctx.beginPath(); ctx.roundRect(-42,-60,84,76,18); ctx.fill();
     ctx.fillStyle='#a1887f'; ctx.beginPath(); ctx.arc(0,-76,35,0,TAU); ctx.fill();
@@ -2126,7 +2207,7 @@ function drawUnit(u){
     else if(bossKey==='colossus') drawStoneColossus(0,u.size*.6-bob,h,bob,u.hitT);
     else if(bossKey==='spirit') drawAncientSpirit(0,u.size*.6-bob,h,bob,u.hitT);
     else drawFinalBoss(0,u.size*.6-bob,h,bob,u.hitT);
-  } else if(['knight','druid','samurai','wolf','shaman','titan','saboteur'].includes(u.type)){
+  } else if(['knight','druid','samurai','wolf','shaman','titan','saboteur','elite'].includes(u.type)){
     drawExtraCharacter(u.type,0,u.size*.6-bob,h,u.face||1,u.hitT);
   } else {
     if((u.face||1)<0) ctx.scale(-1,1);
@@ -2527,7 +2608,7 @@ function makeSnap(){
   const U=[];
   for(const u of G.units){ if(u.dead) continue;
     U.push([u.id,u.T.i,HERO_KEYS.indexOf(u.type)>=0?HERO_KEYS.indexOf(u.type):
-      (u.type==='slime'?20:u.type==='brute'?21:u.type==='boss'?22:u.type==='wolf'?23:u.type==='shaman'?24:u.type==='titan'?25:26),
+      (u.type==='slime'?20:u.type==='brute'?21:u.type==='boss'?22:u.type==='wolf'?23:u.type==='shaman'?24:u.type==='titan'?25:u.type==='saboteur'?26:u.type==='elite'?27:26),
       u.lvl,Math.round(u.x),Math.round(u.y),Math.round(u.hp),Math.round(u.max),u.face||1]); }
   const TS=G.teams.slice(1).map(T=>[Math.round(T.x),Math.round(T.y),T.gems,T.dead?1:0,Math.round(T.dashCd*10)]);
   const CH=G.chests.map(c=>[Math.round(c.x),Math.round(c.y),c.big?1:0,c.super?1:0]);
@@ -2548,9 +2629,10 @@ function makeSnap(){
           bdx:G.boss?Math.round((G.boss.dashDX||0)*100):0,bdy:G.boss?Math.round((G.boss.dashDY||0)*100):0,
           bdl:G.boss?Math.round(G.boss.dashLen||0):0,
           bts:G.boss&&G.boss.teleSpots?G.boss.teleSpots.map(s=>[Math.round(s.x),Math.round(s.y)]):[],
+          GS:G.goldSpirit?[Math.round(G.goldSpirit.x),Math.round(G.goldSpirit.y),Math.round(G.goldSpirit.t*10)]:null,
           U,TS,CH,GM,RS,HT,SO};
 }
-const SNAPKEY=[...HERO_KEYS,'','','','','','','','','','','','slime','brute','boss','wolf','shaman','titan','saboteur'];
+const SNAPKEY=[...HERO_KEYS,'','','','','','','','','slime','brute','boss','wolf','shaman','titan','saboteur','elite'];
 function applySnap(s){
   if(!G||!G.coop) return;
   G.time=s.t/10; G.wave=s.w; G.lives=s.l; G.shared=s.sh; G.bossDown=!!s.bd; G.bossTier=s.bt||0;
@@ -2585,6 +2667,7 @@ function applySnap(s){
   G.gems=s.GM.map(g=>({x:g[0],y:g[1],vx:0,vy:0,t:1,ph:rnd(0,TAU)}));
   G.hearts=(s.HT||[]).map(h=>({x:h[0],y:h[1],t:0,ph:rnd(0,TAU)}));
   G.speedOrbs=(s.SO||[]).map(o=>({x:o[0],y:o[1],t:0,ph:rnd(0,TAU)}));
+  G.goldSpirit=s.GS?{x:s.GS[0],y:s.GS[1],t:s.GS[2]/10,moveT:999}:null;
   for(const [i,d,hp] of s.RS){ const r=G.res[i]; if(r){ r.dead=!!d; r.hp=hp; } }
 }
 // تنعيم حركة ما يصل من المضيف
