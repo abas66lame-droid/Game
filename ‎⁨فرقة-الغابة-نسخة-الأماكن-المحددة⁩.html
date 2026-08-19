@@ -44,6 +44,14 @@
     pointer-events:auto;box-shadow:0 6px 0 rgba(0,0,0,.35);flex-direction:column;line-height:1}
   #dash.cool{filter:grayscale(.75) brightness(.7)}
   #dash i{width:38px;height:38px;display:block;background-image:var(--atlas);background-size:800% 800%}
+  #cannonBtn{position:absolute;bottom:calc(78px + env(safe-area-inset-bottom));left:22px;width:74px;height:74px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#90a4ae,#455a64);border:4px solid rgba(255,255,255,.4);
+    color:#fff;font-size:20px;font-weight:800;display:flex;align-items:center;justify-content:center;
+    pointer-events:auto;box-shadow:0 6px 0 rgba(0,0,0,.35);flex-direction:column;line-height:1}
+  #cannonBtn small{font-size:11px;margin-top:2px}
+  #cannonBtn.hide{display:none}
+  #cannonBtn.afford{background:radial-gradient(circle at 35% 30%,#ffe082,#f9a825);color:#4e2c00}
+  body:not(.coop) #cannonBtn, body.coop.pvp #cannonBtn{display:none}
   .screen{position:fixed;inset:0;display:flex;align-items:safe center;justify-content:safe center;padding:22px;
     overflow-y:auto;background:radial-gradient(circle at 50% 25%,#2f6b33,#122a15 70%);z-index:5}
   .screen.hide{display:none}
@@ -130,6 +138,7 @@
   <div class="board" id="board"></div>
   <div class="squad" id="squad"></div>
   <button id="dash"><i id="dashIcon"></i>اندفاع</button>
+  <button id="cannonBtn" class="hide">🔫<small id="cannonCost"></small></button>
   <button id="info">؟</button>
   <div class="coopHud" id="coop"></div>
   <div class="netPill" id="netPill"></div>
@@ -310,7 +319,9 @@ const TYPES={
   saboteur:{n:'المخرّب', e:'🧨', c:'#6d4c41', hp:110, dmg:55, rng:38, spd:1.22, rate:.85, wild:1, buildingOnly:1},
   elite   :{n:'المقاتل الشرس', e:'🐗', c:'#8d4e2a', hp:900, dmg:30, rng:42, spd:.65, rate:1.05, wild:1},
   grove   :{n:'عملاق الغابة', e:'🌳', c:'#4e7942', hp:2200, dmg:26, rng:48, spd:.40, rate:1.3, wild:1},
+  cannon  :{n:'المدفع', e:'🔫', c:'#607d8b', hp:420, dmg:24, rng:175, spd:0, rate:.9, shot:1, splash:42, pj:'bomb'},
 };
+const CANNON_COST=70;
 const COOP_TEAMS=[
   {n:'البرية',   c:'#795548', wild:true},
   {n:'أنت',      c:'#ffffff', player:true, coop:true},
@@ -400,7 +411,7 @@ function newGame(mode,seed){
   const coop=MODE==='coop'||pvp;
   seed=seed||((Math.random()*1e9)>>>0);
   G={t:0,time:pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH),uid:1,teams:[],units:[],res:[],chests:[],gems:[],shots:[],fx:[],
-     nextChest:1.5,over:false,frenzy:0,eclipse:0,goldSpirit:null,mark:null,chestTurn:0,evQ:[],seed,
+     nextChest:1.5,over:false,frenzy:0,eclipse:0,goldSpirit:null,cannonBuilt:false,mark:null,chestTurn:0,evQ:[],seed,
      coop,pvp,wave:0,waveT:4,boss:null,bossArena:null,bossSpawned:false,bossDown:false,bossTier:0,bossBreak:0,overtimeAnnounced:false,lateBoostAnnounced:false,lives:COOP_LIVES,won:false,shared:0,target:COOP_TARGET,hearts:[],speedOrbs:[],matchDuration:(pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH)),safeR:null};
   seedRNG(seed);
   G.modifier=pick(MODIFIER_KEYS);
@@ -525,6 +536,7 @@ function addUnit(T,type,lvl,x,y){
 function killUnit(u){
   if(u.dead) return; u.dead=true;
   fxPop(u.x,u.y,TYPES[u.type].c);
+  if(u.type==='cannon'){ G.cannonBuilt=false; announce('💥 دُمِّر المدفع!','اجمعوا الجواهر وابنوا واحدًا آخر'); }
   if(u.eliteBounty){ spawnChest(true,u.x,u.y); fxRing(u.x,u.y,'#ffd54f'); }
   if(u.T.wild){
     let n=u.type==='grove'?32:u.type==='brute'?12:(u.eliteBounty?22:4);
@@ -625,6 +637,15 @@ function doDash(){
   const T=ME();
   if(T.dashCd>0||T.dead) return;
   T.dash=1.0; T.dashCd=7; beep(520,.14,'sawtooth',.05);
+}
+
+const cannonBtn=document.getElementById('cannonBtn');
+cannonBtn.addEventListener('touchstart',e=>{ e.preventDefault(); e.stopPropagation(); doBuildCannon(); },{passive:false});
+cannonBtn.addEventListener('click',doBuildCannon);
+function doBuildCannon(){
+  if(!running||!G||!G.coop||G.pvp) return;
+  if(G.coop&&NET.on&&NET.role==='guest'){ NET.wantCannon=true; beep(180,.1,'square',.05); return; }
+  tryBuildCannon(ME());
 }
 
 // ─────────────────────────── منطق اللعبة ───────────────────────────
@@ -915,6 +936,19 @@ function springMimic(T,x,y){
   fxSpr('boom',x,y,26,64,.42); fxRing(x,y,'#ff5252');
   if(T.player){ fxText(x,y-30,'😈 صندوق مخادع!','#ff5252'); beep(140,.22,'sawtooth',.08); }
 }
+function tryBuildCannon(T){
+  if(!G.coop||G.pvp||!G.building||G.building.dead||G.cannonBuilt) return false;
+  if(!T||T.dead||T.gems<CANNON_COST) return false;
+  T.gems-=CANNON_COST;
+  const x=G.building.x+80, y=G.building.y;
+  const u=addUnit(T,'cannon',1,x,y);
+  if(u) u.size=30;
+  G.cannonBuilt=true;
+  fxSpr('portal',x,y,26,90,.8); fxRing(x,y,'#90a4ae');
+  announce('🔫 تم بناء المدفع!','سيدافع عن المبنى تلقائيًا ضد الوحوش القريبة');
+  if(T.player) beep(180,.3,'square',.08);
+  return true;
+}
 function chestCost(T){
   if(G.freeChestsT>0) return 0;
   const k=(T.chestCount||0)+1;
@@ -1070,7 +1104,8 @@ function updateTeams(dt){
     let mx=0,my=0;
     if(T.player){ mx=input.jx; my=input.jy; }
     else if(T.coop&&NET.on&&NET.peerOn){ const p=NET.peerInp; mx=p.x; my=p.y;
-      if(p.dash&&T.dashCd<=0){ T.dash=1; T.dashCd=7; p.dash=0; } }
+      if(p.dash&&T.dashCd<=0){ T.dash=1; T.dashCd=7; p.dash=0; }
+      if(p.cannon){ tryBuildCannon(T); p.cannon=0; } }
     else if(T.coop){ // رفيق آلي لين يدخل صديقك
       T.think-=dt;
       if(T.think<=0){ allyThink(T); clampGoalToZone(T); T.think=rnd(.4,.8); }
@@ -1488,7 +1523,11 @@ function stepBossDash(dt){
 }
 function updateBossAI(dt){
   const b=G.boss; if(!b||b.dead) return;
-  b.ax=b.x; b.ay=b.y; // بلا قفص: يلاحق اللاعبين بلا حدود مسافة عن نقطة ظهوره
+  if(G.safeR!=null){
+    const dx=b.x-ISL.cx, dy=b.y-ISL.cy, d=Math.hypot(dx,dy), R=G.safeR-20;
+    if(d>R){ const a=Math.atan2(dy,dx); b.x=ISL.cx+Math.cos(a)*R; b.y=ISL.cy+Math.sin(a)*R; }
+  }
+  b.ax=b.x; b.ay=b.y; // بلا قفص: يلاحق اللاعبين بلا حدود مسافة عن نقطة ظهوره، لكن لا يتجاوز المنطقة الآمنة
   b.phase = b.hp>b.max*.7?1 : b.hp>b.max*.35?2:3;
   if(b.phase===3 && !b.enraging && b.enrageT<=0){
     b.enraging=true; b.enrageT=6;
@@ -2267,6 +2306,15 @@ function drawExtraCharacter(type,x,y,h,face,hit){
     ctx.fillStyle='#ffca28'; ctx.beginPath(); ctx.arc(-9,-70,4,0,TAU); ctx.arc(9,-70,4,0,TAU); ctx.fill();
     ctx.fillStyle='#3e2723'; ctx.beginPath(); ctx.arc(-9,-70,2,0,TAU); ctx.arc(9,-70,2,0,TAU); ctx.fill();
     ctx.strokeStyle='#5d4037'; ctx.lineWidth=13; ctx.beginPath(); ctx.moveTo(-24,-10); ctx.lineTo(-50,40); ctx.moveTo(24,-10); ctx.lineTo(50,40); ctx.stroke();
+  }else if(type==='cannon'){
+    ctx.fillStyle=flash?'#fff':'#455a64'; ctx.beginPath(); ctx.roundRect(-36,-8,72,34,8); ctx.fill();
+    ctx.fillStyle='#263238'; ctx.beginPath(); ctx.arc(-22,26,14,0,TAU); ctx.arc(22,26,14,0,TAU); ctx.fill();
+    ctx.fillStyle='#607d8b'; ctx.beginPath(); ctx.arc(-22,26,7,0,TAU); ctx.arc(22,26,7,0,TAU); ctx.fill();
+    ctx.save(); ctx.translate(0,-4); ctx.rotate(-.35);
+    ctx.fillStyle=flash?'#fff':'#78909c'; ctx.beginPath(); ctx.roundRect(-10,-62,20,58,7); ctx.fill();
+    ctx.fillStyle='#37474f'; ctx.beginPath(); ctx.roundRect(-12,-66,24,12,5); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle='#ffb300'; ctx.beginPath(); ctx.arc(0,-10,6,0,TAU); ctx.fill();
   }else{
     ctx.fillStyle=flash?'#fff':'#795548'; ctx.beginPath(); ctx.roundRect(-42,-60,84,76,18); ctx.fill();
     ctx.fillStyle='#a1887f'; ctx.beginPath(); ctx.arc(0,-76,35,0,TAU); ctx.fill();
@@ -2308,7 +2356,7 @@ function drawUnit(u){
     else if(bossKey==='colossus') drawStoneColossus(0,u.size*.6-bob,h,bob,u.hitT);
     else if(bossKey==='spirit') drawAncientSpirit(0,u.size*.6-bob,h,bob,u.hitT);
     else drawFinalBoss(0,u.size*.6-bob,h,bob,u.hitT);
-  } else if(['knight','druid','samurai','wolf','shaman','titan','saboteur','elite','grove'].includes(u.type)){
+  } else if(['knight','druid','samurai','wolf','shaman','titan','saboteur','elite','grove','cannon'].includes(u.type)){
     drawExtraCharacter(u.type,0,u.size*.6-bob,h,u.face||1,u.hitT);
   } else {
     if((u.face||1)<0) ctx.scale(-1,1);
@@ -2435,6 +2483,13 @@ function updateCoopHud(){
     (b? '<div class="bossbar"><i style="width:'+Math.max(0,Math.round(b.hp/b.max*100))+'%"></i></div><div class="crow">'+roster.emoji+' '+roster.name+' ('+(G.bossTier||1)+'/'+BOSSES.length+')</div>'
       : (G.bossDown?'<div class="crow ok">🏆 كل الزعماء سقطوا!</div>':''))+
     (G.building? '<div class="bossbar"><i style="width:'+Math.max(0,Math.round(G.building.hp/G.building.max*100))+'%;background:linear-gradient(90deg,#ffb300,#ffd54f)"></i></div><div class="crow'+(G.building.dead?'':'')+'">🏰 المبنى</div>' : '');
+  const showCannon=G.building&&!G.building.dead&&!G.cannonBuilt;
+  cannonBtn.classList.toggle('hide',!showCannon);
+  if(showCannon){
+    const T=ME();
+    cannonBtn.classList.toggle('afford',T.gems>=CANNON_COST);
+    document.getElementById('cannonCost').textContent=CANNON_COST+' 💎';
+  }
 }
 
 function updateSquadBar(force){
@@ -2520,7 +2575,7 @@ async function netConnect(roomCode, desiredRole){
 
   try{ if(NET.ch && NET.ch.unsubscribe) NET.ch.unsubscribe(); }catch(e){}
   if(NET.ch && NET.ch.ws){ try{ NET.ch.ws.close(); }catch(e){} }
-  NET.on=false; NET.ch=null; NET.peerOn=false; NET.peerLastSeen=0; NET.peerInp={x:0,y:0,dash:0};
+  NET.on=false; NET.ch=null; NET.peerOn=false; NET.peerLastSeen=0; NET.peerInp={x:0,y:0,dash:0,cannon:0};
 
   const wsUrl=SUPA_URL.replace(/^https:/,'wss:').replace(/^http:/,'ws:')+
     '/realtime/v1/websocket?apikey='+encodeURIComponent(SUPA_KEY)+'&vsn=2.0.0';
@@ -2586,7 +2641,7 @@ async function netConnect(roomCode, desiredRole){
     if(evn==='i'){
       if(NET.role==='host'){
         NET.peerLastSeen=Date.now();
-        NET.peerInp.x=data.x; NET.peerInp.y=data.y; if(data.d) NET.peerInp.dash=1;
+        NET.peerInp.x=data.x; NET.peerInp.y=data.y; if(data.d) NET.peerInp.dash=1; if(data.c) NET.peerInp.cannon=1;
       }
       return;
     }
@@ -2599,7 +2654,7 @@ async function netConnect(roomCode, desiredRole){
     if(NET.role!=='host' || !NET.peerOn) return;
     NET.peerOn=false;
     NET.peerLastSeen=0;
-    NET.peerInp={x:0,y:0,dash:0};
+    NET.peerInp={x:0,y:0,dash:0,cannon:0};
     netStatus('صديقك خرج من اللعبة · الرفيق متوقف');
     if(G&&G.coop&&running){
       // مهم: لا نحول اللاعب الحقيقي إلى بوت. فرقة الصديق تتجمد مكانها فقط.
@@ -2709,7 +2764,7 @@ function makeSnap(){
   const U=[];
   for(const u of G.units){ if(u.dead) continue;
     U.push([u.id,u.T.i,HERO_KEYS.indexOf(u.type)>=0?HERO_KEYS.indexOf(u.type):
-      (u.type==='slime'?20:u.type==='brute'?21:u.type==='boss'?22:u.type==='wolf'?23:u.type==='shaman'?24:u.type==='titan'?25:u.type==='saboteur'?26:u.type==='elite'?27:u.type==='grove'?28:26),
+      (u.type==='slime'?20:u.type==='brute'?21:u.type==='boss'?22:u.type==='wolf'?23:u.type==='shaman'?24:u.type==='titan'?25:u.type==='saboteur'?26:u.type==='elite'?27:u.type==='grove'?28:u.type==='cannon'?29:26),
       u.lvl,Math.round(u.x),Math.round(u.y),Math.round(u.hp),Math.round(u.max),u.face||1]); }
   const TS=G.teams.slice(1).map(T=>[Math.round(T.x),Math.round(T.y),T.gems,T.dead?1:0,Math.round(T.dashCd*10)]);
   const CH=G.chests.map(c=>[Math.round(c.x),Math.round(c.y),c.big?1:0,c.super?1:0,c.isMimic?1:0]);
@@ -2733,7 +2788,7 @@ function makeSnap(){
           GS:G.goldSpirit?[Math.round(G.goldSpirit.x),Math.round(G.goldSpirit.y),Math.round(G.goldSpirit.t*10)]:null,
           U,TS,CH,GM,RS,HT,SO};
 }
-const SNAPKEY=[...HERO_KEYS,'','','','','','','','','slime','brute','boss','wolf','shaman','titan','saboteur','elite','grove'];
+const SNAPKEY=[...HERO_KEYS,'','','','','','','','','slime','brute','boss','wolf','shaman','titan','saboteur','elite','grove','cannon'];
 function applySnap(s){
   if(!G||!G.coop) return;
   G.time=s.t/10; G.wave=s.w; G.lives=s.l; G.shared=s.sh; G.bossDown=!!s.bd; G.bossTier=s.bt||0;
@@ -2789,7 +2844,7 @@ function netTick(dt){
     if(NET.snapT<=0){ NET.snapT=.14; netSend('s',makeSnap()); }
   }else{
     NET.sendT-=dt;
-    if(NET.sendT<=0){ NET.sendT=.09; netSend('i',{x:+input.jx.toFixed(2),y:+input.jy.toFixed(2),d:NET.wantDash?1:0}); NET.wantDash=false; }
+    if(NET.sendT<=0){ NET.sendT=.09; netSend('i',{x:+input.jx.toFixed(2),y:+input.jy.toFixed(2),d:NET.wantDash?1:0,c:NET.wantCannon?1:0}); NET.wantDash=false; NET.wantCannon=false; }
     netLerp(dt);
   }
 }
