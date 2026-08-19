@@ -175,6 +175,15 @@
   </div>
 </div>
 
+<div class="screen hide" id="modIntro">
+  <div class="card">
+    <div id="modIntroEmoji" style="font-size:74px;line-height:1"></div>
+    <h1 id="modIntroName"></h1>
+    <div class="rules" id="modIntroDesc" style="text-align:center"></div>
+    <div class="hint">تبدأ المباراة خلال لحظات...</div>
+  </div>
+</div>
+
 <div class="screen hide" id="end">
   <div class="card">
     <h1 id="endTitle">انتهت الجولة</h1>
@@ -421,7 +430,6 @@ function newGame(mode,seed){
     mp.style.display='';
     mp.innerHTML=mi.e+'<small>'+mi.n+'</small>';
   }
-  setTimeout(()=>{ const mi=MODIFIERS[G.modifier]; announce(mi.e+' معدّل المباراة: '+mi.n, mi.d); },900);
   // الأحداث العشوائية (نفسها للاثنين لأن البذرة موحّدة)
   {
     const keys=['rain','wave','mega','frenzy','eclipse','elite','goldenspirit'];
@@ -520,7 +528,7 @@ function spawnChest(big=false,fx=null,fy=null,superC=false){
       x=p.x; y=p.y;
     }else [x,y]=randIsl(180);
   }
-  const isMimic=!big&&!superC&&G.modifier==='mimic'&&RND()<.3;
+  const isMimic=!big&&!superC&&G.modifier==='mimic'&&RND()<.42;
   G.chests.push({x,y,big:big||superC,super:superC,got:false,t:0,isMimic});
 }
 
@@ -1228,9 +1236,9 @@ const CHAOS_SUBEVENTS=[
 function updateChaos(dt){
   if(G.freeChestsT>0) G.freeChestsT-=dt;
   if(G.modifier!=='chaos') return;
-  G.chaosT=(G.chaosT===undefined?rnd(14,20):G.chaosT)-dt;
+  G.chaosT=(G.chaosT===undefined?rnd(8,12):G.chaosT)-dt;
   if(G.chaosT<=0){
-    G.chaosT=rnd(18,26);
+    G.chaosT=rnd(12,18);
     pick(CHAOS_SUBEVENTS)();
     beep(500,.14,'triangle',.06);
   }
@@ -1238,11 +1246,11 @@ function updateChaos(dt){
 
 function updateForestGiants(dt){
   if(G.modifier!=='giants') return;
-  G.groveT=(G.groveT===undefined?3:G.groveT)-dt;
+  G.groveT=(G.groveT===undefined?1.5:G.groveT)-dt;
   if(G.groveT>0) return;
   const alive=G.teams[0].units.filter(u=>!u.dead&&u.type==='grove').length;
-  if(alive>=2){ G.groveT=4; return; }
-  G.groveT=rnd(5,8);
+  if(alive>=3){ G.groveT=4; return; }
+  G.groveT=rnd(4,6);
   const [x,y]=randIsl(220);
   const u=addUnit(G.teams[0],'grove',1,x,y);
   if(u){ u.size=54; fxSpr('portal',x,y,30,110,.9); }
@@ -1292,8 +1300,8 @@ function respawnWild(dt){
   const invasion=G.modifier==='invasion';
   const wild=G.teams[0];
   G.wildT=(G.wildT||0)-dt;
-  if(G.wildT>0||wild.units.length>=(invasion?18:11)) return;
-  G.wildT=invasion?rnd(4,6):rnd(9,14);
+  if(G.wildT>0||wild.units.length>=(invasion?26:11)) return;
+  G.wildT=invasion?rnd(2.5,4):rnd(9,14);
   for(let k=0;k<14;k++){
     const [x,y]=randIsl(140);
     let ok=true;
@@ -1381,7 +1389,7 @@ function spawnWave(){
   const wild=G.teams[0];
   const alive=wild.units.filter(u=>!u.dead&&!TYPES[u.type].boss).length;
   // موجات ضخمة ومتزايدة: 20 ثم +12 لكل موجة، مع سقف 96 وحشاً نشطاً.
-  const desired=Math.min((G.modifier==='invasion'?42:30) + (G.wave-1)*16, 125);
+  const desired=Math.min((G.modifier==='invasion'?58:30) + (G.wave-1)*16, 125);
   const n=Math.max(0,Math.min(desired,WILD_CAP-alive));
   if(n<=0){ announce('🌊 الموجة '+G.wave,'الساحة ممتلئة — استمروا بقتل الوحوش!'); return; }
   for(let i=0;i<n;i++){
@@ -1568,7 +1576,7 @@ function updateCoop(dt){
   }
   if(!G.bossSpawned){
     G.waveT-=dt;
-    if(G.waveT<=0&&G.time>3){ spawnWave(); G.waveT=G.modifier==='invasion'?WAVE_EVERY*.55:WAVE_EVERY; }
+    if(G.waveT<=0&&G.time>3){ spawnWave(); G.waveT=G.modifier==='invasion'?WAVE_EVERY*.4:WAVE_EVERY; }
   }
   if(G.boss&&!G.boss.dead){ G.mark={x:G.boss.x,y:G.boss.y,t:3}; updateBossAI(dt); }
 }
@@ -1700,6 +1708,23 @@ function draw(){
     ng.addColorStop(0,'rgba(4,8,20,0)'); ng.addColorStop(1,'rgba(4,8,20,.55)');
     ctx.fillStyle=ng; ctx.beginPath(); ctx.arc(me.x,me.y,R,0,TAU); ctx.fill();
     ctx.restore();
+  }else if(G.modifier){
+    const vigColors={wrath:'20,70,15',invasion:'120,10,10',mimic:'90,20,110',giants:'20,55,18'};
+    const cx=cam.x+vw/2, cy=cam.y+vh/2, rad=Math.hypot(vw,vh)/2;
+    if(G.modifier==='chaos'){
+      const hue=(G.t*40)%360;
+      ctx.save();
+      const cg=ctx.createRadialGradient(cx,cy,rad*.3,cx,cy,rad);
+      cg.addColorStop(0,'hsla('+hue+',80%,50%,0)'); cg.addColorStop(1,'hsla('+hue+',80%,50%,.4)');
+      ctx.fillStyle=cg; ctx.fillRect(cam.x-100,cam.y-100,vw+200,vh+200);
+      ctx.restore();
+    }else if(vigColors[G.modifier]){
+      ctx.save();
+      const vg=ctx.createRadialGradient(cx,cy,rad*.3,cx,cy,rad);
+      vg.addColorStop(0,'rgba('+vigColors[G.modifier]+',0)'); vg.addColorStop(1,'rgba('+vigColors[G.modifier]+',.85)');
+      ctx.fillStyle=vg; ctx.fillRect(cam.x-100,cam.y-100,vw+200,vh+200);
+      ctx.restore();
+    }
   }
 
   // هالة نطاق الفرق: أعلى مدى هجوم عند كل فرقة (رمادي=أنت، أزرق=حليف، أحمر=خصم).
@@ -2633,8 +2658,9 @@ async function netConnect(roomCode, desiredRole){
     if(evn==='seed'){
       if(NET.role!=='guest') return;
       if(!G||!G.coop||G.seed!==data.seed){
-        MYTEAM=2; newGame(data.mode||'coop',data.seed); running=true; last=performance.now(); acc=0;
+        MYTEAM=2; newGame(data.mode||'coop',data.seed);
         elStart.classList.add('hide'); elEnd.classList.add('hide');
+        showModIntroThenStart();
       }
       return;
     }
@@ -2895,11 +2921,25 @@ document.addEventListener('visibilitychange',()=>{ if(document.hidden){ last=per
 let lastMode='solo';
 function audioOn(){ try{ if(!AC) AC=new (window.AudioContext||window.webkitAudioContext)(); if(AC.state==='suspended') AC.resume(); }catch(e){} }
 
+const elModIntro=document.getElementById('modIntro');
+function showModIntroThenStart(){
+  const mi=MODIFIERS[G.modifier];
+  document.getElementById('modIntroEmoji').textContent=mi.e;
+  document.getElementById('modIntroName').textContent=mi.n;
+  document.getElementById('modIntroDesc').textContent=mi.d;
+  elModIntro.classList.remove('hide');
+  clearTimeout(elModIntro._t);
+  elModIntro._t=setTimeout(()=>{
+    elModIntro.classList.add('hide');
+    running=true; last=performance.now(); acc=0;
+    audioOn();
+  },5000);
+}
 function start(mode,seed){
   lastMode=mode||lastMode;
-  newGame(lastMode,seed); running=true; last=performance.now(); acc=0;
+  newGame(lastMode,seed);
   elStart.classList.add('hide'); elEnd.classList.add('hide');
-  audioOn();
+  showModIntroThenStart();
 }
 document.getElementById('play').addEventListener('click',()=>{ MYTEAM=1; NET.on=false; start('solo'); });
 document.getElementById('again').addEventListener('click',()=>{
