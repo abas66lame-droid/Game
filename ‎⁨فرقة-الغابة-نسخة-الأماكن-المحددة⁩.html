@@ -31,7 +31,7 @@
   .board .row.me{opacity:1;color:#ffd54f}
   .board .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-left:5px;vertical-align:middle}
   .squad{position:absolute;bottom:calc(10px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);
-    display:flex;gap:4px;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 230px)}
+    display:flex;gap:4px;flex-wrap:wrap;justify-content:center;max-width:calc(var(--vw100, 100vw) - 230px)}
   .chip{background:rgba(12,28,14,.75);border:2px solid rgba(255,255,255,.16);border-radius:11px;padding:2px 5px;
     color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;gap:2px}
   .chip i{width:26px;height:26px;display:block;background-image:var(--atlas);background-size:800% 800%}
@@ -44,8 +44,8 @@
     pointer-events:auto;box-shadow:0 6px 0 rgba(0,0,0,.35);flex-direction:column;line-height:1}
   #dash.cool{filter:grayscale(.75) brightness(.7)}
   #dash i{width:38px;height:38px;display:block;background-image:var(--atlas);background-size:800% 800%}
-  .screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:22px;
-    background:radial-gradient(circle at 50% 25%,#2f6b33,#122a15 70%);z-index:5}
+  .screen{position:fixed;inset:0;display:flex;align-items:safe center;justify-content:safe center;padding:22px;
+    overflow-y:auto;background:radial-gradient(circle at 50% 25%,#2f6b33,#122a15 70%);z-index:5}
   .screen.hide{display:none}
   #start{background-size:cover;background-position:center 28%}
   .card{width:min(430px,100%);background:rgba(8,22,10,.82);border:3px solid rgba(255,255,255,.16);border-radius:24px;
@@ -96,7 +96,7 @@
   body.coop.pvp .coopHud{display:none}
   body.coop.pvp .board{display:block}
   .duelbtn{background:linear-gradient(180deg,#ff8a65,#ef5350)!important}
-  .heroList{max-height:56vh;overflow:auto;text-align:right;margin:8px 0}
+  .heroList{max-height:calc(var(--vh100, 100vh) * .56);overflow:auto;text-align:right;margin:8px 0}
   .hero{display:flex;gap:10px;align-items:center;background:rgba(255,255,255,.07);
     border-radius:14px;padding:8px 10px;margin-bottom:7px}
   .hero canvas{width:46px;height:46px;flex:0 0 46px}
@@ -111,7 +111,7 @@
 
 <style id="friendsCss">
 .fpOverlay{position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;padding:14px;direction:rtl;font-family:inherit}
-.fpCard{width:min(430px,100%);max-height:92vh;overflow:auto;background:#15191f;color:#fff;border:1px solid rgba(255,255,255,.16);border-radius:22px;padding:20px;box-shadow:0 20px 80px rgba(0,0,0,.7)}
+.fpCard{width:min(430px,100%);max-height:calc(var(--vh100, 100vh) * .92);overflow:auto;background:#15191f;color:#fff;border:1px solid rgba(255,255,255,.16);border-radius:22px;padding:20px;box-shadow:0 20px 80px rgba(0,0,0,.7)}
 .fpTitle{font-size:26px;font-weight:1000;text-align:center;margin-bottom:8px}.fpSub{font-size:13px;opacity:.7;text-align:center;line-height:1.7;margin-bottom:16px}
 .fpInput{width:100%;box-sizing:border-box;background:#0b0e12;color:#fff;border:1px solid rgba(255,255,255,.16);border-radius:13px;padding:13px;font-size:17px;margin:5px 0;outline:none}
 .fpBtn{width:100%;min-height:50px;border:0;border-radius:13px;color:#fff;font-weight:900;font-size:16px;margin-top:8px;cursor:pointer;touch-action:manipulation}.fpGreen{background:#22b573}.fpBlue{background:#2f8cff}.fpGray{background:#39414c}.fpDanger{background:#9b3a3a}
@@ -194,6 +194,8 @@ function resize(){
   cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR);
   cv.style.width=W+'px'; cv.style.height=H+'px';
   Z=Math.max(.85,Math.min(1.7,Math.min(W,H)/470));
+  document.documentElement.style.setProperty('--vw100',W+'px');
+  document.documentElement.style.setProperty('--vh100',H+'px');
 }
 addEventListener('resize',resize); addEventListener('orientationchange',()=>setTimeout(resize,120));
 resize();
