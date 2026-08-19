@@ -352,6 +352,7 @@ const MODIFIERS={
   giants:{n:'عمالقة الغابة', e:'🌲', d:'عمالقة ضخمة تجوب الخريطة — قوية لكن غنائمها هائلة'},
   night:{n:'ليل الغابة', e:'🌙', d:'الرؤية محدودة والوحوش أقوى في الظلام'},
   chaos:{n:'الفوضى', e:'🌀', d:'أحداث مفاجئة قصيرة كل فترة طوال المباراة'},
+  pets:{n:'الوحوش الأليفة', e:'🐾', d:'كل وحش تقتلونه يصبح حليفًا يدافع عن مكانه بدل أن يموت'},
 };
 const MODIFIER_KEYS=Object.keys(MODIFIERS);
 const BOSSES=[
@@ -482,18 +483,20 @@ function buildWorld(){
       spr:o.sp[vi],vh:o.h[vi]*rnd(.9,1.12),face:RND()<.5?-1:1,
       sway:rnd(0,TAU),isRes:true});
   }
-  // وحوش برية
+  // وحوش برية: موزعة على كل الخريطة، المنتصف خفيف جدًا والأطراف قوية جدًا.
   const wild=G.teams[0];
-  const INITIAL_SPAWNS=[[520,520],[1600,460],[2680,520],[420,1600],[2780,1580],[620,2660],[1640,2860],[2700,2660]];
   for(let i=0;i<(G.coop?32:18);i++){
-    const z=INITIAL_SPAWNS[i%INITIAL_SPAWNS.length];
-    const a=(i*137.5)*Math.PI/180, r=70+(i%4)*20;
-    const x=Math.max(170,Math.min(MAP-170,z[0]+Math.cos(a)*r));
-    const y=Math.max(170,Math.min(MAP-170,z[1]+Math.sin(a)*r));
-    const roll=RND();
-    const type=roll<.12?'titan':(roll<.25?'wolf':(roll<.34?'shaman':(roll<.54?'brute':'slime')));
+    const a=rnd(0,TAU), frac=.08+Math.pow(RND(),.85)*.9;
+    const R=islR(a)*frac*.92;
+    const x=ISL.cx+Math.cos(a)*R, y=ISL.cy+Math.sin(a)*R;
+    if(!farFromTeams(x,y,300)) continue;
+    const type=wildTypeForBand(frac);
     const u=addUnit(wild,type,1,x,y);
-    u.ax=x; u.ay=y;
+    if(u){
+      const boost=wildStatMul(frac);
+      u.max=Math.round(u.max*boost); u.hp=u.max; u.dmg=Math.round(u.dmg*boost);
+      u.ax=x; u.ay=y;
+    }
   }
   // زينة غير قابلة للكسر
   G.decor=[];
@@ -543,7 +546,18 @@ function addUnit(T,type,lvl,x,y){
 }
 
 function killUnit(u,src){
-  if(u.dead) return; u.dead=true;
+  if(u.dead) return;
+  if(G.modifier==='pets'&&u.T.wild&&src&&src.T&&!src.T.wild&&!TYPES[u.type].boss&&!TYPES[u.type].buildingOnly&&u.type!=='elite'&&u.type!=='grove'){
+    const oldT=u.T, idx=oldT.units.indexOf(u);
+    if(idx>=0) oldT.units.splice(idx,1);
+    u.T=src.T; src.T.units.push(u);
+    u.hp=u.max; u.stationaryAlly=true; u.tgt=null;
+    fxRing(u.x,u.y,'#8bc34a'); fxSpr('levelup',u.x,u.y-6,24,60,.5);
+    fxText(u.x,u.y-24,'🐾 حليف جديد!','#8bc34a');
+    if(src.T.player) beep(520,.14,'sine',.06);
+    return;
+  }
+  u.dead=true;
   fxPop(u.x,u.y,TYPES[u.type].c);
   if(u.type==='cannon'){ G.cannonBuilt=false; announce('💥 دُمِّر المدفع!','اجمعوا الجواهر وابنوا واحدًا آخر'); }
   if(u.type==='grove'){
@@ -749,7 +763,7 @@ function updateUnits(dt){
     u.cd-=dt; u.re-=dt; u.hitT=Math.max(0,u.hitT-dt); u.pop=Math.max(0,u.pop-dt);
     // اختيار هدف
     if(u.re<=0||!u.tgt||u.tgt.dead){ u.tgt=findTarget(u); u.re=.35+rnd(0,.25); }
-    const stationary=u.T.wild||u.type==='cannon';
+    const stationary=u.T.wild||u.type==='cannon'||u.stationaryAlly;
     const anchorX=stationary?u.ax:u.T.x, anchorY=stationary?u.ay:u.T.y;
     const leash=stationary?240:LEASH;
     let dx=0,dy=0,desired=null;
@@ -786,7 +800,7 @@ function updateUnits(dt){
     if(!u.tgt){ u.calm=(u.calm||0)+dt; if(u.calm>1.5) u.hp=Math.min(u.max,u.hp+u.max*.14*dt); }
     else u.calm=0;
     if(!desired){ // العودة للتشكيل
-      if(u.T.wild){ desired=[u.ax,u.ay]; }
+      if(u.T.wild||u.stationaryAlly){ desired=[u.ax,u.ay]; }
       else{
         const idx=u.T.units.indexOf(u), s=slot(Math.max(0,idx));
         desired=[u.T.x+s[0]*(1+ (u.lvl-1)*.35), u.T.y+s[1]*(1+(u.lvl-1)*.35)];
@@ -1326,11 +1340,10 @@ function respawnWild(dt){
   G.wildT=invasion?rnd(2.5,4):rnd(9,14);
   for(let k=0;k<14;k++){
     const [x,y]=randIsl(140);
-    let ok=true;
-    for(let i=1;i<G.teams.length;i++){ const T=G.teams[i];
-      if((T.x-x)**2+(T.y-y)**2<420*420){ ok=false; break; } }
-    if(!ok) continue;
-    const u=addUnit(wild,Math.random()<.22?'brute':'slime',1,x,y);
+    if(!farFromTeams(x,y,380)) continue;
+    const frac=clamp(Math.hypot(x-ISL.cx,y-ISL.cy)/islR(Math.atan2(y-ISL.cy,x-ISL.cx)),0,1);
+    const u=addUnit(wild,wildTypeForBand(frac),1,x,y);
+    if(u){ const boost=wildStatMul(frac); u.max=Math.round(u.max*boost); u.hp=u.max; u.dmg=Math.round(u.dmg*boost); }
     u.ax=x; u.ay=y; u.pop=.5; fxSpr('portal',x,y,14,52,.6);
     return;
   }
@@ -1406,28 +1419,34 @@ function updateEvents(dt){
   }
 }
 
+function wildTypeForBand(frac){
+  const r=RND();
+  if(frac<.35){ return r<.9?'slime':'brute'; }
+  else if(frac<.7){ if(r<.40) return 'slime'; if(r<.70) return 'brute'; if(r<.88) return 'wolf'; return 'shaman'; }
+  else{ if(r<.10) return 'slime'; if(r<.40) return 'brute'; if(r<.65) return 'wolf'; if(r<.85) return 'shaman'; return 'titan'; }
+}
+function wildStatMul(frac){ return .70+frac*.75; }
+function farFromTeams(x,y,d){
+  for(let ti=1;ti<G.teams.length;ti++){ const T=G.teams[ti]; if((T.x-x)**2+(T.y-y)**2<d*d) return false; }
+  return true;
+}
 function spawnWave(){
   G.wave++;
   const wild=G.teams[0];
   const alive=wild.units.filter(u=>!u.dead&&!TYPES[u.type].boss).length;
-  // موجات ضخمة ومتزايدة: 20 ثم +12 لكل موجة، مع سقف 96 وحشاً نشطاً.
-  const desired=Math.min((G.modifier==='invasion'?58:30) + (G.wave-1)*16, 125);
+  // موجات متزايدة موزعة على كل الخريطة: المنتصف خفيف والأطراف قوية.
+  const desired=Math.min((G.modifier==='invasion'?46:32) + (G.wave-1)*11, 92);
   const n=Math.max(0,Math.min(desired,WILD_CAP-alive));
   if(n<=0){ announce('🌊 الموجة '+G.wave,'الساحة ممتلئة — استمروا بقتل الوحوش!'); return; }
   for(let i=0;i<n;i++){
-    const a=rnd(0,TAU), R=islR(a)-rnd(100,240);
+    const a=rnd(0,TAU), frac=Math.pow(RND(),.85);
+    const R=islR(a)*frac*.92;
     const x=ISL.cx+Math.cos(a)*R, y=ISL.cy+Math.sin(a)*R;
-    // كلما تقدمت الموجات تزيد نسبة الوحوش الضخمة.
-    const bruteChance=Math.min(.16+G.wave*.025,.42);
-    const roll=RND();
-    let type='slime';
-    if(roll<bruteChance) type='brute';
-    else if(roll<Math.min(.18+G.wave*.018,.34)) type='wolf';
-    else if(roll<Math.min(.23+G.wave*.012,.42)) type='shaman';
-    else if(roll<Math.min(.27+G.wave*.010,.50)) type='titan';
+    if(!farFromTeams(x,y,220)) continue;
+    const type=wildTypeForBand(frac);
     const u=addUnit(wild,type,1,x,y);
     if(u){
-      const boost=1+G.wave*.085;
+      const boost=(1+G.wave*.07)*wildStatMul(frac);
       u.max=Math.round(u.max*boost); u.hp=u.max; u.dmg=Math.round(u.dmg*boost);
       u.ax=x; u.ay=y;
     }
@@ -1757,7 +1776,9 @@ function draw(){
       if(T.dead||T.remoteDisconnected) continue;
       const aliveUnits=T.units.filter(u=>!u.dead);
       if(!aliveUnits.length) continue;
-      const maxR=Math.max(...aliveUnits.map(u=>(TYPES[u.type]&&TYPES[u.type].rng)||30));
+      const rngR=Math.max(...aliveUnits.map(u=>(TYPES[u.type]&&TYPES[u.type].rng)||30));
+      const spreadR=Math.hypot(...slot(aliveUnits.length))+42;
+      const maxR=Math.max(rngR,spreadR);
       if(!vis(T.x,T.y,maxR+40)) continue;
       let col;
       if(T===myT) col='176,176,176';
