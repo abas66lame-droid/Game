@@ -577,6 +577,7 @@ function readInput(){
 }
 
 const dashBtn=document.getElementById('dash');
+dashBtn.addEventListener('touchstart',e=>{ e.preventDefault(); e.stopPropagation(); doDash(); },{passive:false});
 dashBtn.addEventListener('click',doDash);
 function doDash(){
   if(!running||!G) return;
