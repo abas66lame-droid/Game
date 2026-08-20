@@ -364,7 +364,7 @@ const COOP_TEAMS=[
   {n:'أنت',      c:'#ffffff', player:true, coop:true},
   {n:'صديقك',    c:'#4dd0e1', coop:true},
 ];
-const COOP_MATCH=300, COOP_TARGET=1200, COOP_LIVES=12, WAVE_EVERY=10, WILD_CAP=100, BOSS_AT=150;
+const COOP_MATCH=300, COOP_TARGET=1200, COOP_LIVES=12, WAVE_EVERY=10, WILD_CAP=75, BOSS_AT=150;
 const DUEL_TEAMS=[
   {n:'البرية',   c:'#795548', wild:true},
   {n:'أنت',      c:'#ffffff', player:true, coop:true},
@@ -530,7 +530,7 @@ function buildWorld(){
   }
   // وحوش برية: موزعة على كل الخريطة، المنتصف خفيف جدًا والأطراف قوية جدًا.
   const wild=G.teams[0];
-  for(let i=0;i<(G.coop?28:16);i++){
+  for(let i=0;i<(G.coop?21:12);i++){
     const a=rnd(0,TAU), frac=.08+Math.pow(RND(),.85)*.9;
     const R=islR(a)*frac*.92;
     const x=ISL.cx+Math.cos(a)*R, y=ISL.cy+Math.sin(a)*R;
@@ -642,8 +642,8 @@ function killUnit(u,src){
   }
   if(u.eliteBounty){ spawnChest(true,u.x,u.y); fxRing(u.x,u.y,'#ffd54f'); }
   if(u.T.wild){
-    const GEM_VALUE={slime:3,wolf:5,saboteur:5,shaman:8,brute:11,titan:20,elite:28,grove:18};
-    let n=u.eliteBounty?28:(GEM_VALUE[u.type]!==undefined?GEM_VALUE[u.type]:4);
+    const GEM_VALUE={slime:6,wolf:10,saboteur:10,shaman:16,brute:22,titan:40,elite:56,grove:36,bee:4,viper:16,boulder:48};
+    let n=u.eliteBounty?56:(GEM_VALUE[u.type]!==undefined?GEM_VALUE[u.type]:6);
     if(G.eclipse>0) n=Math.round(n*1.5);
     dropGems(u.x,u.y,n);
   }
@@ -1508,7 +1508,7 @@ function respawnWild(dt){
   const invasion=hasMod('invasion');
   const wild=G.teams[0];
   G.wildT=(G.wildT||0)-dt;
-  if(G.wildT>0||wild.units.length>=(invasion?26:11)) return;
+  if(G.wildT>0||wild.units.length>=(invasion?20:8)) return;
   G.wildT=invasion?rnd(2.5,4):rnd(9,14);
   for(let k=0;k<14;k++){
     const [x,y]=randIsl(140);
@@ -1608,7 +1608,7 @@ function spawnWave(){
   const wild=G.teams[0];
   const alive=wild.units.filter(u=>!u.dead&&!TYPES[u.type].boss).length;
   // موجات متزايدة موزعة على كل الخريطة: المنتصف خفيف والأطراف قوية.
-  const desired=Math.min((hasMod('invasion')?32:22) + (G.wave-1)*7, 60);
+  const desired=Math.min((hasMod('invasion')?24:17) + (G.wave-1)*5, 45);
   const n=Math.max(0,Math.min(desired,WILD_CAP-alive));
   if(n<=0){ announce('🌊 الموجة '+G.wave,'الساحة ممتلئة — استمروا بقتل الوحوش!'); return; }
   for(let i=0;i<n;i++){
@@ -2797,6 +2797,24 @@ function drawUnit(u){
     const p=clamp(u.hp/u.max,0,1);
     ctx.fillStyle=p>.5?'#66bb6a':(p>.25?'#ffca28':'#ef5350');
     rr(-w/2,-h*.72,w*p,5,2.5); ctx.fill();
+  }
+  const badges=[];
+  if(u.slowT>0) badges.push(['❄️','#4fc3f7']);
+  if(u.poisonT>0) badges.push(['☠️','#7cb342']);
+  if(u.burnT>0) badges.push(['🔥','#ff7043']);
+  if(u.allyShieldT>0) badges.push(['🛡️','#4fc3f7']);
+  if(badges.length){
+    const bs=Math.max(9,Math.round(h*.13)), by=-h*.82, gap=bs*1.55;
+    const startX=-(badges.length-1)*gap/2;
+    badges.forEach((b,i)=>{
+      const bx=startX+i*gap;
+      ctx.beginPath(); ctx.arc(bx,by,bs*.62,0,TAU);
+      ctx.fillStyle=b[1]; ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=1.4; ctx.stroke();
+      ctx.font=bs+'px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(b[0],bx,by+.5);
+    });
+    ctx.textBaseline='alphabetic';
   }
   ctx.restore();
 }
