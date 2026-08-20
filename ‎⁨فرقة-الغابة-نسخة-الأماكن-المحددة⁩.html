@@ -649,6 +649,11 @@ function fxSpr(name,x,y,h0,h1,life,rot){ G.fx.push({k:'i',name,x,y,h0,h1,rot:rot
 function fxPop(x,y,c){ fxSpr('boom',x,y,26,64,.42); }
 function fxRing(x,y,c){ fxSpr('ring',x,y,20,86,.5); }
 function fxHit(x,y,c){ if(Math.random()<.45) fxSpr('spark',x+rnd(-6,6),y+rnd(-8,4),16,28,.22); }
+function fxFire(x,y){ G.fx.push({k:'fire',x,y,t:0,life:.5,ph:rnd(0,TAU)}); }
+function fxZap(x,y,x2,y2){ G.fx.push({k:'zap',x,y,x2,y2,t:0,life:.22}); }
+function fxTimeRipple(x,y){ G.fx.push({k:'time',x,y,t:0,life:.5}); }
+function fxSlash(x,y,ang){ G.fx.push({k:'slash',x,y,ang:ang||0,t:0,life:.28}); }
+function fxCrystal(x,y){ G.fx.push({k:'crystal',x,y,t:0,life:.4}); }
 
 function dropGems(x,y,n){
   for(let i=0;i<n;i++){ const a=rnd(0,TAU), s=rnd(30,110);
@@ -848,7 +853,13 @@ function updateUnits(dt){
           if(t.shot){
             G.shots.push({x:u.x,y:u.y-u.size,tgt:u.tgt,dmg,splash:t.splash||0,c:t.c,sp:430,T:u.T,src:u,
               spr:t.pj||'orb',ang:0});
-          } else { hurt(u.tgt,dmg,u); applySpecialOnHit(u,u.tgt); }
+          } else {
+            hurt(u.tgt,dmg,u); applySpecialOnHit(u,u.tgt);
+            if(t.legendary){
+              if(u.type==='phantom') fxSlash(u.tgt.x,u.tgt.y-10,Math.atan2(u.tgt.y-u.y,u.tgt.x-u.x));
+              else if(u.type==='guardian') fxCrystal(u.tgt.x,u.tgt.y-10);
+            }
+          }
           u.cd=t.rate*(u.slowT>0?1.6:1); u.pop=.18;
           if(u.T.player&&!t.shot) beep(180,.04,'square',.02);
         }
@@ -906,6 +917,12 @@ function updateShots(dt){
     if(d<12){
       hurt(s.tgt,s.dmg,s.src);
       applySpecialOnHit(s.src,s.tgt);
+      if(s.src&&TYPES[s.src.type]&&TYPES[s.src.type].legendary){
+        const lt=s.src.type;
+        if(lt==='babydragon'){ fxFire(s.tgt.x,s.tgt.y-10); fxSpr('boom',s.tgt.x,s.tgt.y-6,36,96,.42); }
+        else if(lt==='thunderspirit'){ fxZap(s.src.x,s.src.y-24,s.tgt.x,s.tgt.y-10); fxSpr('spark',s.tgt.x,s.tgt.y,20,32,.22); }
+        else if(lt==='timemage'){ fxTimeRipple(s.tgt.x,s.tgt.y-8); }
+      }
       if(s.splash) fxSpr('boom',s.tgt.x,s.tgt.y-6,30,s.splash*1.5,.4);
       if(s.splash){
         fxRing(s.tgt.x,s.tgt.y,s.c);
@@ -2515,8 +2532,11 @@ function drawExtraCharacter(type,x,y,h,face,hit){
     ctx.restore();
   }else if(type==='babydragon'){
     ctx.fillStyle=flash?'#fff':'#ff7043'; ctx.beginPath(); ctx.ellipse(0,-25,32,28,0,0,TAU); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(-24,-42); ctx.lineTo(-56,-66); ctx.lineTo(-14,-50); ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(24,-42); ctx.lineTo(56,-66); ctx.lineTo(14,-50); ctx.closePath(); ctx.fill();
+    ctx.fillStyle=flash?'#fff':'#ff7043';
+    ctx.save(); ctx.translate(-24,-42); ctx.rotate(Math.sin(G.t*9)*.4-.15);
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-34,-24); ctx.lineTo(10,-8); ctx.closePath(); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.translate(24,-42); ctx.rotate(-Math.sin(G.t*9)*.4+.15);
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(34,-24); ctx.lineTo(-10,-8); ctx.closePath(); ctx.fill(); ctx.restore();
     ctx.fillStyle='#d84315';
     for(let i=0;i<3;i++){ const yy=-44+i*14; ctx.beginPath(); ctx.moveTo(-4,yy); ctx.lineTo(0,yy-13); ctx.lineTo(4,yy); ctx.closePath(); ctx.fill(); }
     ctx.fillStyle='#ffccbc'; ctx.beginPath(); ctx.ellipse(0,-14,16,12,0,0,TAU); ctx.fill();
@@ -2650,6 +2670,41 @@ function drawFx(){
     } else if(f.k==='l'){
       ctx.strokeStyle=f.c; ctx.lineWidth=3;
       ctx.beginPath(); ctx.moveTo(f.x,f.y); ctx.lineTo(f.x2,f.y2); ctx.stroke();
+    } else if(f.k==='fire'){
+      ctx.save(); ctx.translate(f.x,f.y);
+      for(let i=0;i<6;i++){
+        const a=f.ph+i*1.05+p*3, r=6+p*24;
+        ctx.fillStyle=i%2?'#ff7043':'#ffc107';
+        ctx.beginPath(); ctx.arc(Math.cos(a)*r*.5,-p*32+Math.sin(a)*r*.3,5*(1-p*.6),0,TAU); ctx.fill();
+      }
+      ctx.restore();
+    } else if(f.k==='zap'){
+      ctx.save();
+      ctx.strokeStyle='#ffeb3b'; ctx.lineWidth=3; ctx.lineJoin='round';
+      const segs=5, dx=(f.x2-f.x)/segs, dy=(f.y2-f.y)/segs;
+      ctx.beginPath(); ctx.moveTo(f.x,f.y);
+      for(let i=1;i<segs;i++) ctx.lineTo(f.x+dx*i+rnd(-7,7),f.y+dy*i+rnd(-7,7));
+      ctx.lineTo(f.x2,f.y2); ctx.stroke();
+      ctx.restore();
+    } else if(f.k==='time'){
+      ctx.save();
+      ctx.strokeStyle='#b39ddb'; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.arc(f.x,f.y,10+p*28,0,TAU); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(f.x,f.y); ctx.lineTo(f.x,f.y-8-p*14); ctx.stroke();
+      ctx.restore();
+    } else if(f.k==='slash'){
+      ctx.save(); ctx.translate(f.x,f.y); ctx.rotate(f.ang);
+      ctx.strokeStyle='#eceff1'; ctx.lineWidth=4;
+      ctx.beginPath(); ctx.arc(0,0,18+p*8,-.6,.6); ctx.stroke();
+      ctx.restore();
+    } else if(f.k==='crystal'){
+      ctx.save(); ctx.translate(f.x,f.y);
+      ctx.fillStyle='#4fc3f7';
+      for(let i=0;i<5;i++){ const a=i/5*TAU, r=p*28;
+        ctx.beginPath(); ctx.moveTo(Math.cos(a)*r,Math.sin(a)*r);
+        ctx.lineTo(Math.cos(a+.28)*(r+9),Math.sin(a+.28)*(r+9));
+        ctx.lineTo(Math.cos(a-.28)*(r+9),Math.sin(a-.28)*(r+9)); ctx.closePath(); ctx.fill(); }
+      ctx.restore();
     }
   }
   ctx.globalAlpha=1;
