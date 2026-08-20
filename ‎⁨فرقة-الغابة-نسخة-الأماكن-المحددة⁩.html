@@ -38,6 +38,14 @@
   .strip{display:flex;justify-content:center;gap:2px;margin:6px 0 2px}
   .strip i{width:56px;height:56px;display:block;background-image:var(--atlas);background-size:800% 800%}
   .chip .lv{font-size:10px;color:#ffd54f}
+  .chip{pointer-events:auto;cursor:pointer}
+  .heroTip{position:absolute;bottom:calc(64px + env(safe-area-inset-bottom));left:50%;
+    transform:translateX(-50%) scale(.92);max-width:min(300px,84vw);
+    background:rgba(8,22,10,.95);border:2px solid rgba(255,213,79,.6);border-radius:14px;
+    padding:9px 14px;color:#fff;font-size:12.5px;line-height:1.6;text-align:center;z-index:8;
+    pointer-events:none;opacity:0;transition:opacity .18s,transform .18s}
+  .heroTip.show{opacity:1;transform:translateX(-50%) scale(1)}
+  .heroTip b{display:block;font-size:14.5px;color:#ffd54f;margin-bottom:2px}
   #dash{position:absolute;bottom:calc(78px + env(safe-area-inset-bottom));right:22px;width:82px;height:82px;border-radius:50%;
     background:radial-gradient(circle at 35% 30%,#ffe082,#f9a825);border:4px solid rgba(255,255,255,.55);
     color:#4e2c00;font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center;
@@ -137,6 +145,7 @@
   </div>
   <div class="board" id="board"></div>
   <div class="squad" id="squad"></div>
+  <div class="heroTip" id="heroTip"></div>
   <button id="dash"><i id="dashIcon"></i>اندفاع</button>
   <button id="cannonBtn" class="hide">🔫<small id="cannonCost"></small></button>
   <button id="info">؟</button>
@@ -306,18 +315,18 @@ function beep(f,d,type,vol){ try{
 
 // ─────────────────────────── الأبطال ───────────────────────────
 const TYPES={
-  fighter :{n:'المبارز',  e:'⚔️', c:'#ef5350', hp:110, dmg:15, rng:34,  spd:1.00, rate:.70},
-  archer  :{n:'الرامية',  e:'🏹', c:'#66bb6a', hp:72,  dmg:11, rng:158, spd:1.05, rate:.62, shot:1, pj:'arrow'},
-  giant   :{n:'الجبل',    e:'🗿', c:'#a1887f', hp:300, dmg:22, rng:38,  spd:.80,  rate:1.15},
-  healer  :{n:'الطبيبة',  e:'💚', c:'#4dd0e1', hp:85,  dmg:5,  rng:120, spd:1.00, rate:.95, heal:14},
-  miner   :{n:'الحفّار',  e:'⛏️', c:'#ffb300', hp:95,  dmg:10, rng:36,  spd:1.00, rate:.50, gather:2.6},
-  mage    :{n:'الساحر',   e:'🔮', c:'#ba68c8', hp:70,  dmg:18, rng:140, spd:.95,  rate:1.15, shot:1, splash:58, pj:'orb'},
-  scout   :{n:'الكشّاف',  e:'👟', c:'#42a5f5', hp:68,  dmg:9,  rng:32,  spd:1.30, rate:.45, aura:.05},
-  bomber  :{n:'القنّاص',  e:'💣', c:'#ff8a65', hp:80,  dmg:26, rng:120, spd:.92,  rate:1.5, shot:1, splash:75, pj:'bomb'},
-  collect :{n:'الجامعة',  e:'💰', c:'#ffd54f', hp:76,  dmg:7,  rng:32,  spd:1.05, rate:.80, bonus:1},
-  knight  :{n:'الفارس', e:'🛡️', c:'#90caf9', hp:190, dmg:19, rng:38, spd:.90, rate:.85, guard:1},
-  druid   :{n:'حارس الغابة', e:'🌿', c:'#81c784', hp:120, dmg:13, rng:110, spd:.95, rate:1.05, shot:1, pj:'orb', heal:6},
-  samurai :{n:'الساموراي', e:'⚔️', c:'#ffcc80', hp:130, dmg:28, rng:42, spd:1.08, rate:.90, crit:.18},
+  fighter :{n:'المبارز',  e:'⚔️', c:'#ef5350', hp:110, dmg:15, rng:34,  spd:1.00, rate:.70, desc:'مقاتل قريب متوازن — ضرر ثابت وصحة جيدة.'},
+  archer  :{n:'الرامية',  e:'🏹', c:'#66bb6a', hp:72,  dmg:11, rng:158, spd:1.05, rate:.62, shot:1, pj:'arrow', desc:'ترمي سهامًا من بعيد بمعدل هجوم سريع.'},
+  giant   :{n:'الجبل',    e:'🗿', c:'#a1887f', hp:300, dmg:22, rng:38,  spd:.80,  rate:1.15, desc:'دبّابة عالية الصحة تمتص الضرر في المقدمة.'},
+  healer  :{n:'الطبيبة',  e:'💚', c:'#4dd0e1', hp:85,  dmg:5,  rng:120, spd:1.00, rate:.95, heal:14, desc:'تشفي أقرب حليف مصاب بشكل دوري.'},
+  miner   :{n:'الحفّار',  e:'⛏️', c:'#ffb300', hp:95,  dmg:10, rng:36,  spd:1.00, rate:.50, gather:2.6, desc:'يجمع من الأشجار والصخور أسرع من أي بطل آخر.'},
+  mage    :{n:'الساحر',   e:'🔮', c:'#ba68c8', hp:70,  dmg:18, rng:140, spd:.95,  rate:1.15, shot:1, splash:58, pj:'orb', desc:'كرة سحرية بضرر منطقة على الأعداء المتجمعين.'},
+  scout   :{n:'الكشّاف',  e:'👟', c:'#42a5f5', hp:68,  dmg:9,  rng:32,  spd:1.30, rate:.45, aura:.05, desc:'سريع الحركة ويمنح الفريق كله دفعة سرعة خفيفة.'},
+  bomber  :{n:'القنّاص',  e:'💣', c:'#ff8a65', hp:80,  dmg:26, rng:120, spd:.92,  rate:1.5, shot:1, splash:75, pj:'bomb', desc:'قنابل بضرر منطقة كبير — ممتاز ضد الحشود.'},
+  collect :{n:'الجامعة',  e:'💰', c:'#ffd54f', hp:76,  dmg:7,  rng:32,  spd:1.05, rate:.80, bonus:1, desc:'تزيد كمية الجواهر من كل مصدر تجمعونه.'},
+  knight  :{n:'الفارس', e:'🛡️', c:'#90caf9', hp:190, dmg:19, rng:38, spd:.90, rate:.85, guard:1, desc:'درع يمتص جزءًا من الضرر عن الفريق.'},
+  druid   :{n:'حارس الغابة', e:'🌿', c:'#81c784', hp:120, dmg:13, rng:110, spd:.95, rate:1.05, shot:1, pj:'orb', heal:6, desc:'يهاجم عن بعد ويشفي القليل بنفس الوقت.'},
+  samurai :{n:'الساموراي', e:'⚔️', c:'#ffcc80', hp:130, dmg:28, rng:42, spd:1.08, rate:.90, crit:.18, desc:'ضربات حادة مع فرصة ضربة حرجة مضاعفة.'},
   // وحوش برية
   slime   :{n:'وحش',      e:'👾', c:'#7e57c2', hp:80,  dmg:7,  rng:32,  spd:.72, rate:1.0, wild:1},
   boss    :{n:'زعيم الغابة', e:'🐲', c:'#c62828', hp:1500, dmg:20, rng:50, spd:.50, rate:1.45, wild:1, boss:1},
@@ -330,11 +339,11 @@ const TYPES={
   grove   :{n:'عملاق الغابة', e:'🌳', c:'#4e7942', hp:2200, dmg:26, rng:48, spd:.40, rate:1.3, wild:1},
   cannon  :{n:'المدفع', e:'🔫', c:'#607d8b', hp:420, dmg:24, rng:175, spd:0, rate:.9, shot:1, splash:42, pj:'bomb'},
   sprite  :{n:'روح الغابة', e:'✨', c:'#4dd8b0', hp:280, dmg:30, rng:140, spd:1.05, rate:.85, shot:1, splash:55, pj:'orb', heal:10},
-  timemage:{n:'ساحر الزمن', e:'⏳', c:'#7c4dff', hp:220, dmg:20, rng:150, spd:1.0, rate:1.4, shot:1, pj:'orb', legendary:1, special:'slow'},
-  babydragon:{n:'التنين الصغير', e:'🐲', c:'#ff7043', hp:260, dmg:22, rng:120, spd:1.05, rate:.9, shot:1, pj:'bomb', splash:35, legendary:1, special:'burn'},
-  thunderspirit:{n:'روح الرعد', e:'⚡', c:'#ffd600', hp:200, dmg:26, rng:135, spd:1.1, rate:.8, shot:1, pj:'orb', legendary:1, special:'chain'},
-  phantom :{n:'الظل الخادع', e:'👤', c:'#546e7a', hp:180, dmg:32, rng:44, spd:1.25, rate:.7, legendary:1, special:'invis'},
-  guardian:{n:'حارس البلورة', e:'💠', c:'#4fc3f7', hp:320, dmg:14, rng:100, spd:.9, rate:1.4, legendary:1, special:'shield'},
+  timemage:{n:'ساحر الزمن', e:'⏳', c:'#7c4dff', hp:220, dmg:20, rng:150, spd:1.0, rate:1.4, shot:1, pj:'orb', legendary:1, special:'slow', desc:'كل بضع ثوانٍ يطلق موجة تُبطئ كل الأعداء القريبين منه.'},
+  babydragon:{n:'التنين الصغير', e:'🐲', c:'#ff7043', hp:260, dmg:22, rng:120, spd:1.05, rate:.9, shot:1, pj:'bomb', splash:35, legendary:1, special:'burn', desc:'قذائفه تُشعل الأعداء بحرق مستمر يلتهم صحتهم بمرور الوقت.'},
+  thunderspirit:{n:'روح الرعد', e:'⚡', c:'#ffd600', hp:200, dmg:26, rng:135, spd:1.1, rate:.8, shot:1, pj:'orb', legendary:1, special:'chain', desc:'كل ضربة تُطلق صاعقة تقفز لأقرب عدو ثانٍ وتصيبه أيضًا.'},
+  phantom :{n:'الظل الخادع', e:'👤', c:'#546e7a', hp:180, dmg:32, rng:44, spd:1.25, rate:.7, legendary:1, special:'invis', desc:'يختفي دوريًا ثم يظهر بضربة كمين مضاعفة الضرر.'},
+  guardian:{n:'حارس البلورة', e:'💠', c:'#4fc3f7', hp:320, dmg:14, rng:100, spd:.9, rate:1.4, legendary:1, special:'shield', desc:'يطلق درعًا دوريًا يقلل الضرر عن كل الحلفاء القريبين.'},
 };
 const LEGENDARY_KEYS=['timemage','babydragon','thunderspirit','phantom','guardian'];
 function heroPool(){
@@ -348,7 +357,7 @@ const COOP_TEAMS=[
   {n:'أنت',      c:'#ffffff', player:true, coop:true},
   {n:'صديقك',    c:'#4dd0e1', coop:true},
 ];
-const COOP_MATCH=300, COOP_TARGET=1200, COOP_LIVES=12, WAVE_EVERY=10, WILD_CAP=150, BOSS_AT=150;
+const COOP_MATCH=300, COOP_TARGET=1200, COOP_LIVES=12, WAVE_EVERY=10, WILD_CAP=100, BOSS_AT=150;
 const DUEL_TEAMS=[
   {n:'البرية',   c:'#795548', wild:true},
   {n:'أنت',      c:'#ffffff', player:true, coop:true},
@@ -425,11 +434,14 @@ function islandPath(g){
 
 // ─────────────────────────── الحالة ───────────────────────────
 let G=null, running=false, last=0, acc=0;
+let shakeMag=0, shakeT=0;
+function addShake(mag,dur){ shakeMag=Math.max(shakeMag,mag); shakeT=Math.max(shakeT,dur); }
 
 let MODE='solo';   // 'solo' أو 'coop'
 let MYTEAM=1;      // رقم فريقي (٢ إذا كنت الضيف بالتعاوني)
 
 function newGame(mode,seed,forcedMods){
+  shakeMag=0; shakeT=0;
   MODE=mode||'solo';
   const pvp=MODE==='duel';
   const coop=MODE==='coop'||pvp;
@@ -500,7 +512,7 @@ function buildWorld(){
   }
   // وحوش برية: موزعة على كل الخريطة، المنتصف خفيف جدًا والأطراف قوية جدًا.
   const wild=G.teams[0];
-  for(let i=0;i<(G.coop?32:18);i++){
+  for(let i=0;i<(G.coop?24:14);i++){
     const a=rnd(0,TAU), frac=.08+Math.pow(RND(),.85)*.9;
     const R=islR(a)*frac*.92;
     const x=ISL.cx+Math.cos(a)*R, y=ISL.cy+Math.sin(a)*R;
@@ -570,7 +582,7 @@ function applySpecialOnHit(src,tgt){
     for(const e of G.units){ if(e.dead||e===tgt||areAllies(src.T,e.T)) continue;
       const d=(e.x-tgt.x)**2+(e.y-tgt.y)**2; if(d<bd){ bd=d; best=e; } }
     if(best){ hurt(best,src.dmg*.55,src);
-      G.fx.push({k:'l',x:tgt.x,y:tgt.y,x2:best.x,y2:best.y,c:'#ffd600',t:0,life:.18}); }
+      G.fx.push({k:'l',x:tgt.x,y:tgt.y,x2:best.x,y2:best.y,c:'#ffd600',t:0,life:.18}); addShake(3,.12); }
   }
 }
 function killUnit(u,src){
@@ -587,6 +599,11 @@ function killUnit(u,src){
   }
   u.dead=true;
   fxPop(u.x,u.y,TYPES[u.type].c);
+  if(u.T.wild){
+    const kt=TYPES[u.type];
+    if(u.type==='boss') addShake(14,.4);
+    else if(kt.hp>=150) addShake(Math.min(9,3+kt.hp/140), kt.hp>=500?.28:.16);
+  }
   if(u.type==='cannon'){ G.cannonBuilt=false; announce('💥 دُمِّر المدفع!','اجمعوا الجواهر وابنوا واحدًا آخر'); }
   if(u.type==='grove'){
     const T=(src&&src.T&&!src.T.wild)?src.T:null;
@@ -599,7 +616,8 @@ function killUnit(u,src){
   }
   if(u.eliteBounty){ spawnChest(true,u.x,u.y); fxRing(u.x,u.y,'#ffd54f'); }
   if(u.T.wild){
-    let n=u.type==='grove'?18:u.type==='brute'?12:(u.eliteBounty?22:4);
+    const GEM_VALUE={slime:3,wolf:5,saboteur:5,shaman:8,brute:11,titan:20,elite:28,grove:18};
+    let n=u.eliteBounty?28:(GEM_VALUE[u.type]!==undefined?GEM_VALUE[u.type]:4);
     if(G.eclipse>0) n=Math.round(n*1.5);
     dropGems(u.x,u.y,n);
   }
@@ -760,7 +778,11 @@ function hurt(e,dmg,src){
   if(src&&src.T&&e.T&&areAllies(src.T,e.T)) return;
   if(e===G.boss&&e.shieldT>0) dmg*=.2;
   if(e.allyShieldT>0) dmg*=.55;
-  e.hp-=dmg; e.hitT=.14;
+  e.hp-=dmg; e.hitT=.18;
+  if(src&&!e.isRes&&!e.isBuilding&&(src.x!==e.x||src.y!==e.y)){
+    const kx=e.x-src.x, ky=e.y-src.y, kd=Math.hypot(kx,ky)||1, kb=Math.min(6,dmg*.12);
+    e.x+=(kx/kd)*kb; e.y+=(ky/kd)*kb;
+  }
   fxHit(e.x,e.y, e.isRes? (e.kind==='rock'?'#bdbdbd':'#8bc34a') : (e.isBuilding?'#ffb300':'#fff'));
   if(e.hp<=0){
     if(e.isRes){
@@ -822,7 +844,7 @@ function updateUnits(dt){
         if(d>reach){ desired=[tx,ty]; }
         else if(u.cd<=0){
           let dmg=u.dmg*(u.tgt.isRes&&t.gather?t.gather:1)*(u.T.wild&&(G.eclipse>0||hasMod('night'))?1.4:1);
-          if(u.ambush){ dmg*=2.2; u.ambush=false; fxText(u.x,u.y-30,'💥 كمين!','#ffd54f'); }
+          if(u.ambush){ dmg*=2.2; u.ambush=false; fxText(u.x,u.y-30,'💥 كمين!','#ffd54f'); addShake(5,.16); }
           if(t.shot){
             G.shots.push({x:u.x,y:u.y-u.size,tgt:u.tgt,dmg,splash:t.splash||0,c:t.c,sp:430,T:u.T,src:u,
               spr:t.pj||'orb',ang:0});
@@ -1325,7 +1347,7 @@ function updateLegendaryAbilities(dt){
         let hitAny=false;
         for(const e of G.units){ if(e.dead||areAllies(u.T,e.T)) continue;
           if((e.x-u.x)**2+(e.y-u.y)**2<150*150){ e.slowT=2.5; hitAny=true; } }
-        if(hitAny){ fxRing(u.x,u.y,'#7c4dff'); if(u.T.player) beep(300,.15,'sine',.06); }
+        if(hitAny){ fxRing(u.x,u.y,'#7c4dff'); addShake(3,.15); if(u.T.player) beep(300,.15,'sine',.06); }
       }
     }else if(t.special==='invis'){
       u.specialCd=(u.specialCd===undefined?rnd(3,5):u.specialCd)-dt;
@@ -1339,7 +1361,7 @@ function updateLegendaryAbilities(dt){
         u.specialCd=6;
         for(const a of u.T.units){ if(a.dead) continue;
           if((a.x-u.x)**2+(a.y-u.y)**2<140*140) a.allyShieldT=4; }
-        fxRing(u.x,u.y,'#4fc3f7');
+        fxRing(u.x,u.y,'#4fc3f7'); addShake(3,.15);
         if(u.T.player) beep(500,.18,'sine',.07);
       }
     }
@@ -1503,7 +1525,7 @@ function spawnWave(){
   const wild=G.teams[0];
   const alive=wild.units.filter(u=>!u.dead&&!TYPES[u.type].boss).length;
   // موجات متزايدة موزعة على كل الخريطة: المنتصف خفيف والأطراف قوية.
-  const desired=Math.min((hasMod('invasion')?46:32) + (G.wave-1)*11, 92);
+  const desired=Math.min((hasMod('invasion')?32:22) + (G.wave-1)*7, 60);
   const n=Math.max(0,Math.min(desired,WILD_CAP-alive));
   if(n<=0){ announce('🌊 الموجة '+G.wave,'الساحة ممتلئة — استمروا بقتل الوحوش!'); return; }
   for(let i=0;i<n;i++){
@@ -1514,7 +1536,7 @@ function spawnWave(){
     const type=wildTypeForBand(frac);
     const u=addUnit(wild,type,1,x,y);
     if(u){
-      const boost=(1+G.wave*.07)*wildStatMul(frac);
+      const boost=(1+G.wave*.10)*wildStatMul(frac);
       u.max=Math.round(u.max*boost); u.hp=u.max; u.dmg=Math.round(u.dmg*boost);
       u.ax=x; u.ay=y;
     }
@@ -1553,10 +1575,12 @@ function spawnBoss(tier){
 
 // ─────────────────────────── حركات الزعيم الخاصة ───────────────────────────
 function bossAoeHit(x,y,r,dmg){
+  let hitAny=false;
   for(const u of G.units){
     if(u.dead||u.T.wild) continue;
-    if((u.x-x)**2+(u.y-y)**2<r*r) hurt(u,dmg,G.boss);
+    if((u.x-x)**2+(u.y-y)**2<r*r){ hurt(u,dmg,G.boss); hitAny=true; }
   }
+  addShake(Math.min(9,3+dmg*.08), dmg>=40?.22:.14);
 }
 function bossPickTarget(){
   let best=null,bd=1e12;
@@ -1634,7 +1658,7 @@ function stepBossDash(dt){
   pullIn(b,20);
   for(const u of G.units){
     if(u.dead||u.T.wild||b.dashHitSet.has(u.id)) continue;
-    if((u.x-b.x)**2+(u.y-b.y)**2<64*64){ hurt(u,b.enraging?46:34,b); b.dashHitSet.add(u.id); }
+    if((u.x-b.x)**2+(u.y-b.y)**2<64*64){ hurt(u,b.enraging?46:34,b); b.dashHitSet.add(u.id); addShake(4,.12); }
   }
   if(b.dashT<=0){ b.mode='idle'; b.moveCd=b.enraging?2.2:rnd(3.6,4.6); }
 }
@@ -1748,6 +1772,10 @@ function draw(){
   const vw=W/Z, vh=H/Z;
   cam.x=clamp(T.x-vw/2,-40,MAP-vw+40); cam.y=clamp(T.y-vh/2,-40,MAP-vh+40);
   if(MAP<vw) cam.x=(MAP-vw)/2; if(MAP<vh) cam.y=(MAP-vh)/2;
+  if(shakeT>0){
+    shakeT=Math.max(0,shakeT-1/60); shakeMag*=.88; if(shakeT<=0) shakeMag=0;
+    if(shakeMag>.4){ cam.x+=(Math.random()*2-1)*shakeMag; cam.y+=(Math.random()*2-1)*shakeMag; }
+  }
 
   ctx.setTransform(DPR,0,0,DPR,0,0);
   ctx.fillStyle='#16321a'; ctx.fillRect(0,0,W,H);
@@ -2470,38 +2498,66 @@ function drawExtraCharacter(type,x,y,h,face,hit){
     for(let i=0;i<3;i++){ const a=G.t*2+i*2; ctx.beginPath(); ctx.arc(Math.cos(a)*30,-40+Math.sin(a)*30,3,0,TAU); ctx.fill(); }
     ctx.globalAlpha=1;
   }else if(type==='timemage'){
-    ctx.fillStyle=flash?'#fff':'#5e35b1'; ctx.beginPath(); ctx.moveTo(-26,20); ctx.lineTo(-22,-50); ctx.quadraticCurveTo(0,-72,22,-50); ctx.lineTo(26,20); ctx.closePath(); ctx.fill();
-    ctx.fillStyle='#d1c4e9'; ctx.beginPath(); ctx.arc(0,-64,20,0,TAU); ctx.fill();
-    ctx.fillStyle='#311b92'; ctx.beginPath(); ctx.arc(-7,-66,3,0,TAU); ctx.arc(7,-66,3,0,TAU); ctx.fill();
-    ctx.strokeStyle='#b39ddb'; ctx.lineWidth=6; ctx.beginPath(); ctx.moveTo(30,-15); ctx.lineTo(48,30); ctx.stroke();
-    ctx.strokeStyle='#e1d5f7'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(48,10,13,0,TAU); ctx.moveTo(48,10); ctx.lineTo(48,2); ctx.moveTo(48,10); ctx.lineTo(54,10); ctx.stroke();
+    ctx.save(); ctx.translate(0,-64); ctx.rotate(G.t*.6);
+    ctx.strokeStyle='rgba(179,157,219,.6)'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,42,0,TAU); ctx.stroke();
+    for(let i=0;i<12;i++){ const a=i/12*TAU;
+      ctx.beginPath(); ctx.moveTo(Math.cos(a)*37,Math.sin(a)*37); ctx.lineTo(Math.cos(a)*44,Math.sin(a)*44); ctx.stroke(); }
+    ctx.restore();
+    ctx.fillStyle=flash?'#fff':'#5e35b1'; ctx.beginPath(); ctx.moveTo(-26,22); ctx.lineTo(-22,-46); ctx.quadraticCurveTo(0,-64,22,-46); ctx.lineTo(26,22); ctx.closePath(); ctx.fill();
+    ctx.fillStyle=flash?'#fff':'#4527a0'; ctx.beginPath(); ctx.moveTo(-32,-58); ctx.lineTo(0,-124); ctx.lineTo(32,-58); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#ffd600'; ctx.beginPath(); ctx.arc(0,-108,4.5,0,TAU); ctx.fill();
+    ctx.fillStyle='#d1c4e9'; ctx.beginPath(); ctx.arc(0,-58,17,0,TAU); ctx.fill();
+    ctx.fillStyle='#311b92'; ctx.beginPath(); ctx.arc(-6,-59,2.6,0,TAU); ctx.arc(6,-59,2.6,0,TAU); ctx.fill();
+    ctx.save(); ctx.translate(33,-4); ctx.rotate(.25);
+    ctx.strokeStyle='#e1d5f7'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(-9,-14); ctx.lineTo(9,-14); ctx.lineTo(-9,14); ctx.lineTo(9,14); ctx.closePath(); ctx.stroke();
+    ctx.fillStyle='#b39ddb'; ctx.beginPath(); ctx.moveTo(-6,-11); ctx.lineTo(6,-11); ctx.lineTo(0,0); ctx.closePath(); ctx.fill();
+    ctx.restore();
   }else if(type==='babydragon'){
     ctx.fillStyle=flash?'#fff':'#ff7043'; ctx.beginPath(); ctx.ellipse(0,-25,32,28,0,0,TAU); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(-24,-42); ctx.lineTo(-46,-58); ctx.lineTo(-16,-52); ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(24,-42); ctx.lineTo(46,-58); ctx.lineTo(16,-52); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-24,-42); ctx.lineTo(-56,-66); ctx.lineTo(-14,-50); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(24,-42); ctx.lineTo(56,-66); ctx.lineTo(14,-50); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#d84315';
+    for(let i=0;i<3;i++){ const yy=-44+i*14; ctx.beginPath(); ctx.moveTo(-4,yy); ctx.lineTo(0,yy-13); ctx.lineTo(4,yy); ctx.closePath(); ctx.fill(); }
     ctx.fillStyle='#ffccbc'; ctx.beginPath(); ctx.ellipse(0,-14,16,12,0,0,TAU); ctx.fill();
     ctx.fillStyle='#ffee58'; ctx.beginPath(); ctx.arc(-9,-30,3.5,0,TAU); ctx.arc(9,-30,3.5,0,TAU); ctx.fill();
     ctx.strokeStyle='#d84315'; ctx.lineWidth=6; ctx.beginPath(); ctx.moveTo(0,3); ctx.quadraticCurveTo(20,20,14,42); ctx.stroke();
     ctx.fillStyle='#ffab40'; ctx.beginPath(); ctx.moveTo(-6,-46); ctx.lineTo(0,-58); ctx.lineTo(6,-46); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='rgba(255,152,0,.85)'; ctx.beginPath(); ctx.arc(26,-18,5+Math.sin(G.t*8)*2,0,TAU); ctx.fill();
   }else if(type==='thunderspirit'){
-    const glow=ctx.createRadialGradient(0,-38,4,0,-38,55);
-    glow.addColorStop(0,'rgba(255,214,0,.5)'); glow.addColorStop(1,'rgba(255,214,0,0)');
-    ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(0,-38,55,0,TAU); ctx.fill();
-    ctx.fillStyle=flash?'#fff':'#fdd835'; ctx.beginPath(); ctx.moveTo(-18,22); ctx.quadraticCurveTo(-22,-30,0,-50); ctx.quadraticCurveTo(22,-30,18,22); ctx.closePath(); ctx.fill();
-    ctx.fillStyle='#37474f'; ctx.beginPath(); ctx.arc(-6,-58,2.5,0,TAU); ctx.arc(6,-58,2.5,0,TAU); ctx.fill();
-    ctx.fillStyle='#fff59d'; ctx.beginPath(); ctx.moveTo(-4,-40); ctx.lineTo(6,-14); ctx.lineTo(-2,-14); ctx.lineTo(6,14); ctx.lineTo(-8,-10); ctx.lineTo(0,-10); ctx.closePath(); ctx.fill();
+    const glow=ctx.createRadialGradient(0,-40,4,0,-40,62);
+    glow.addColorStop(0,'rgba(255,214,0,.55)'); glow.addColorStop(1,'rgba(255,214,0,0)');
+    ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(0,-40,62,0,TAU); ctx.fill();
+    ctx.fillStyle=flash?'#fff':'#fdd835'; ctx.beginPath();
+    ctx.moveTo(0,24); ctx.lineTo(-20,-8); ctx.lineTo(-8,-14); ctx.lineTo(-24,-46); ctx.lineTo(-8,-40);
+    ctx.lineTo(-14,-76); ctx.lineTo(0,-52); ctx.lineTo(14,-76); ctx.lineTo(8,-40); ctx.lineTo(24,-46);
+    ctx.lineTo(8,-14); ctx.lineTo(20,-8); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#37474f'; ctx.beginPath(); ctx.arc(-6,-46,2.6,0,TAU); ctx.arc(6,-46,2.6,0,TAU); ctx.fill();
+    ctx.strokeStyle='#fff59d'; ctx.lineWidth=2.5;
+    for(let i=0;i<3;i++){ const a=G.t*4+i*2.1, r=50, px=Math.cos(a)*r, py=-40+Math.sin(a)*r*.6;
+      ctx.beginPath(); ctx.moveTo(px-5,py); ctx.lineTo(px+5,py-6); ctx.lineTo(px,py+6); ctx.stroke(); }
   }else if(type==='phantom'){
-    ctx.globalAlpha=.82;
-    ctx.fillStyle=flash?'#fff':'#455a64'; ctx.beginPath(); ctx.moveTo(-26,26); ctx.quadraticCurveTo(-30,-30,0,-58); ctx.quadraticCurveTo(30,-30,26,26); ctx.closePath(); ctx.fill();
-    ctx.fillStyle='#263238'; ctx.beginPath(); ctx.moveTo(-20,-24); ctx.quadraticCurveTo(0,-42,20,-24); ctx.quadraticCurveTo(14,-6,0,-2); ctx.quadraticCurveTo(-14,-6,-20,-24); ctx.closePath(); ctx.fill();
-    ctx.fillStyle='#ff5252'; ctx.beginPath(); ctx.arc(-7,-24,2.6,0,TAU); ctx.arc(7,-24,2.6,0,TAU); ctx.fill();
+    ctx.globalAlpha=.85;
+    ctx.fillStyle=flash?'#fff':'#37474f'; ctx.beginPath();
+    ctx.moveTo(-28,-30); ctx.quadraticCurveTo(-32,-56,0,-64); ctx.quadraticCurveTo(32,-56,28,-30);
+    ctx.lineTo(24,-4); ctx.lineTo(30,22); ctx.lineTo(18,4); ctx.lineTo(10,26); ctx.lineTo(2,2);
+    ctx.lineTo(-6,26); ctx.lineTo(-12,2); ctx.lineTo(-22,24); ctx.lineTo(-16,-4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#263238'; ctx.beginPath();
+    ctx.moveTo(-22,-26); ctx.quadraticCurveTo(0,-46,22,-26); ctx.quadraticCurveTo(15,-6,0,-2); ctx.quadraticCurveTo(-15,-6,-22,-26); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#ff5252'; ctx.beginPath(); ctx.arc(-7,-25,2.8,0,TAU); ctx.arc(7,-25,2.8,0,TAU); ctx.fill();
+    ctx.strokeStyle='#b0bec5'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.moveTo(-34,-2); ctx.lineTo(-14,-20); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(34,-2); ctx.lineTo(14,-20); ctx.stroke();
     ctx.globalAlpha=1;
   }else if(type==='guardian'){
-    ctx.fillStyle=flash?'#fff':'#37474f'; ctx.beginPath(); ctx.roundRect(-34,-52,68,74,16); ctx.fill();
-    ctx.fillStyle='#4fc3f7'; ctx.beginPath(); ctx.moveTo(0,-42); ctx.lineTo(20,-24); ctx.lineTo(12,4); ctx.lineTo(-12,4); ctx.lineTo(-20,-24); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle='#e1f5fe'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.moveTo(0,-42); ctx.lineTo(0,4); ctx.stroke();
-    ctx.fillStyle='#90a4ae'; ctx.beginPath(); ctx.arc(0,-68,22,0,TAU); ctx.fill();
-    ctx.fillStyle='#4fc3f7'; ctx.beginPath(); ctx.arc(-8,-68,3.5,0,TAU); ctx.arc(8,-68,3.5,0,TAU); ctx.fill();
+    ctx.fillStyle=flash?'#fff':'#37474f'; ctx.beginPath(); ctx.roundRect(-36,-54,72,78,18); ctx.fill();
+    ctx.fillStyle='#4fc3f7';
+    ctx.beginPath(); ctx.moveTo(-36,-40); ctx.lineTo(-52,-52); ctx.lineTo(-44,-24); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(36,-40); ctx.lineTo(52,-52); ctx.lineTo(44,-24); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#4fc3f7'; ctx.beginPath(); ctx.moveTo(0,-44); ctx.lineTo(22,-22); ctx.lineTo(14,10); ctx.lineTo(-14,10); ctx.lineTo(-22,-22); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='#e1f5fe'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.moveTo(0,-44); ctx.lineTo(0,10); ctx.moveTo(-22,-22); ctx.lineTo(22,-22); ctx.stroke();
+    ctx.fillStyle='#90a4ae'; ctx.beginPath(); ctx.arc(0,-70,22,0,TAU); ctx.fill();
+    ctx.fillStyle='#4fc3f7'; ctx.beginPath(); ctx.arc(-8,-70,3.5,0,TAU); ctx.arc(8,-70,3.5,0,TAU); ctx.fill();
   }else{
     ctx.fillStyle=flash?'#fff':'#795548'; ctx.beginPath(); ctx.roundRect(-42,-60,84,76,18); ctx.fill();
     ctx.fillStyle='#a1887f'; ctx.beginPath(); ctx.arc(0,-76,35,0,TAU); ctx.fill();
@@ -2687,10 +2743,21 @@ function updateSquadBar(force){
   const sig=arr.map(a=>a.t+a.l+'x'+a.n).join('|')+(T.dead?'D':'');
   if(sig===lastSquadSig&&!force) return; lastSquadSig=sig;
   if(T.dead){ elSquad.innerHTML='<div class="chip">💀 تعاد الفرقة بعد '+Math.ceil(T.resp)+'ث</div>'; return; }
-  elSquad.innerHTML=arr.map(a=>'<div class="chip">'+chipIcon(a.t)+
+  elSquad.innerHTML=arr.map(a=>'<div class="chip" data-type="'+a.t+'">'+chipIcon(a.t)+
     (a.l>1?'<span class="lv">'+(a.l===2?'⭐':'🌟')+'</span>':'')+
     (a.n>1?'<span class="lv">×'+a.n+'</span>':'')+'</div>').join('');
 }
+function showHeroTip(type){
+  const t=TYPES[type]; if(!t||!t.desc) return;
+  const el=document.getElementById('heroTip'); if(!el) return;
+  el.innerHTML='<b>'+t.e+' '+t.n+'</b>'+t.desc;
+  el.classList.add('show');
+  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),3500);
+}
+elSquad.addEventListener('click',e=>{
+  const chip=e.target.closest('.chip'); if(!chip||!chip.dataset.type) return;
+  showHeroTip(chip.dataset.type);
+});
 
 function updateBoard(force){
   const list=G.teams.slice(1).map((T,i)=>({n:T.n,g:T.gems,c:T.c,me:(i+1)===MYTEAM}))
