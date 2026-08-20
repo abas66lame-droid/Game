@@ -532,7 +532,7 @@ function buildWorld(){
   }
   // وحوش برية: موزعة على كل الخريطة، المنتصف خفيف جدًا والأطراف قوية جدًا.
   const wild=G.teams[0];
-  for(let i=0;i<(G.coop?21:12);i++){
+  for(let i=0;i<(G.coop?4:2);i++){
     const a=rnd(0,TAU), frac=.08+Math.pow(RND(),.85)*.9;
     const R=islR(a)*frac*.92;
     const x=ISL.cx+Math.cos(a)*R, y=ISL.cy+Math.sin(a)*R;
@@ -1517,6 +1517,7 @@ function respawnResources(dt){
 
 function respawnWild(dt){
   if(G.coop) return; // في التعاوني الموجات هي مصدر الوحوش
+  if(G.matchDuration-G.time<60) return; // الدقيقة الأولى هادئة تقريبًا بلا وحوش
   const invasion=hasMod('invasion');
   const wild=G.teams[0];
   G.wildT=(G.wildT||0)-dt;
@@ -1804,7 +1805,7 @@ function updateCoop(dt){
   }
   if(!G.bossSpawned){
     G.waveT-=dt;
-    if(G.waveT<=0&&G.time>3){ spawnWave(); G.waveT=hasMod('invasion')?WAVE_EVERY*.4:WAVE_EVERY; }
+    if(G.waveT<=0&&G.time>3&&G.matchDuration-G.time>=60){ spawnWave(); G.waveT=hasMod('invasion')?WAVE_EVERY*.4:WAVE_EVERY; }
   }
   if(G.boss&&!G.boss.dead){ G.mark={x:G.boss.x,y:G.boss.y,t:3}; updateBossAI(dt); }
 }
