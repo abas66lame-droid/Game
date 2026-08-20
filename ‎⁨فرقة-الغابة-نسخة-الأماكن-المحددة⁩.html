@@ -346,7 +346,7 @@ const TYPES={
   bee     :{n:'نحلة الغابة', e:'🐝', c:'#ffca28', hp:55, dmg:6, rng:60, spd:1.5, rate:.55, shot:1, pj:'arrow', wild:1},
   elite   :{n:'المقاتل الشرس', e:'🐗', c:'#8d4e2a', hp:900, dmg:30, rng:42, spd:.65, rate:1.05, wild:1},
   grove   :{n:'عملاق الغابة', e:'🌳', c:'#4e7942', hp:2200, dmg:26, rng:48, spd:.40, rate:1.3, wild:1},
-  cannon  :{n:'المدفع', e:'🔫', c:'#607d8b', hp:420, dmg:24, rng:175, spd:0, rate:.9, shot:1, splash:42, pj:'bomb'},
+  cannon  :{n:'المدفع', e:'🔫', c:'#607d8b', hp:900, dmg:70, rng:210, spd:0, rate:.65, shot:1, splash:65, pj:'bomb'},
   sprite  :{n:'روح الغابة', e:'✨', c:'#4dd8b0', hp:280, dmg:30, rng:140, spd:1.05, rate:.85, shot:1, splash:55, pj:'orb', heal:10},
   timemage:{n:'ساحر الزمن', e:'⏳', c:'#7c4dff', hp:220, dmg:20, rng:150, spd:1.0, rate:1.4, shot:1, pj:'orb', legendary:1, special:'slow', desc:'كل بضع ثوانٍ يطلق موجة تُبطئ كل الأعداء القريبين منه.'},
   babydragon:{n:'التنين الصغير', e:'🐲', c:'#ff7043', hp:260, dmg:22, rng:120, spd:1.05, rate:.9, shot:1, pj:'bomb', splash:35, legendary:1, special:'burn', desc:'قذائفه تُشعل الأعداء بحرق مستمر يلتهم صحتهم بمرور الوقت.'},
@@ -360,7 +360,7 @@ function heroPool(){
   if(G.time<=120) return HERO_KEYS.concat(LEGENDARY_KEYS);
   return HERO_KEYS;
 }
-const CANNON_COST=70;
+const CANNON_COST=220;
 const COOP_TEAMS=[
   {n:'البرية',   c:'#795548', wild:true},
   {n:'أنت',      c:'#ffffff', player:true, coop:true},
@@ -864,6 +864,7 @@ function findTarget(u){
 
 function hurt(e,dmg,src){
   if(src&&src.T&&e.T&&areAllies(src.T,e.T)) return;
+  if(e.type==='cannon') return;
   if(e===G.boss&&e.shieldT>0) dmg*=.2;
   if(e.allyShieldT>0) dmg*=.55;
   e.hp-=dmg; e.hitT=.18;
@@ -1138,7 +1139,7 @@ function tryBuildCannon(T){
   if(u) u.size=30;
   G.cannonBuilt=true;
   fxSpr('portal',x,y,26,90,.8); fxRing(x,y,'#90a4ae');
-  announce('🔫 تم بناء المدفع!','سيدافع عن المبنى تلقائيًا ضد الوحوش القريبة');
+  announce('🔫 تم بناء المدفع!','مدفع ثابت لا يُدمَّر — يدافع عن المبنى تلقائيًا ضد الوحوش القريبة');
   if(T.player) beep(180,.3,'square',.08);
   return true;
 }
