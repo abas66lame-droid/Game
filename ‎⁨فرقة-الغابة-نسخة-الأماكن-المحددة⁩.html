@@ -31,7 +31,8 @@
   .board .row.me{opacity:1;color:#ffd54f}
   .board .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-left:5px;vertical-align:middle}
   .squad{position:absolute;bottom:calc(10px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);
-    display:flex;gap:4px;flex-wrap:wrap;justify-content:center;max-width:calc(var(--vw100, 100vw) - 230px)}
+    display:flex;gap:4px;flex-wrap:wrap;justify-content:center;align-content:flex-end;
+    max-width:calc(var(--vw100, 100vw) - 230px);max-height:34vh;overflow-y:auto;overscroll-behavior:contain}
   .chip{background:rgba(12,28,14,.75);border:2px solid rgba(255,255,255,.16);border-radius:11px;padding:2px 5px;
     color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;gap:2px}
   .chip i{width:26px;height:26px;display:block;background-image:var(--atlas);background-size:800% 800%}
@@ -3021,13 +3022,16 @@ function updateCoopHud(){
 function updateSquadBar(force){
   const T=ME(), map={};
   for(const u of T.units){ if(u.dead) continue; const k=u.type+u.lvl; map[k]=map[k]||{t:u.type,l:u.lvl,n:0}; map[k].n++; }
-  const arr=Object.values(map).sort((a,b)=>b.l-a.l||b.n-a.n);
-  const sig=arr.map(a=>a.t+a.l+'x'+a.n).join('|')+(T.dead?'D':'');
+  const full=Object.values(map).sort((a,b)=>b.l-a.l||b.n-a.n);
+  const sig=full.map(a=>a.t+a.l+'x'+a.n).join('|')+(T.dead?'D':'');
   if(sig===lastSquadSig&&!force) return; lastSquadSig=sig;
   if(T.dead){ elSquad.innerHTML='<div class="chip">💀 تعاد الفرقة بعد '+Math.ceil(T.resp)+'ث</div>'; return; }
+  const CHIP_CAP=20;
+  const arr=full.slice(0,CHIP_CAP), extra=full.length-arr.length;
   elSquad.innerHTML=arr.map(a=>'<div class="chip" data-type="'+a.t+'">'+chipIcon(a.t)+
     (a.l>1?'<span class="lv">'+(a.l===2?'⭐':'🌟')+'</span>':'')+
-    (a.n>1?'<span class="lv">×'+a.n+'</span>':'')+'</div>').join('');
+    (a.n>1?'<span class="lv">×'+a.n+'</span>':'')+'</div>').join('')+
+    (extra>0?'<div class="chip">+'+extra+'</div>':'');
 }
 function showHeroTip(type){
   const t=TYPES[type]; if(!t||!t.desc) return;
