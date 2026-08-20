@@ -512,7 +512,7 @@ function buildWorld(){
   }
   // وحوش برية: موزعة على كل الخريطة، المنتصف خفيف جدًا والأطراف قوية جدًا.
   const wild=G.teams[0];
-  for(let i=0;i<(G.coop?24:14);i++){
+  for(let i=0;i<(G.coop?28:16);i++){
     const a=rnd(0,TAU), frac=.08+Math.pow(RND(),.85)*.9;
     const R=islR(a)*frac*.92;
     const x=ISL.cx+Math.cos(a)*R, y=ISL.cy+Math.sin(a)*R;
@@ -521,7 +521,7 @@ function buildWorld(){
     const u=addUnit(wild,type,1,x,y);
     if(u){
       const boost=wildStatMul(frac);
-      u.max=Math.round(u.max*boost); u.hp=u.max; u.dmg=Math.round(u.dmg*boost);
+      u.max=Math.round(u.max*boost); u.hp=u.max; u.dmg=Math.round(u.dmg*wildDmgMul(boost));
       u.ax=x; u.ay=y;
     }
   }
@@ -1474,7 +1474,7 @@ function respawnWild(dt){
     if(!farFromTeams(x,y,380)) continue;
     const frac=clamp(Math.hypot(x-ISL.cx,y-ISL.cy)/islR(Math.atan2(y-ISL.cy,x-ISL.cx)),0,1);
     const u=addUnit(wild,wildTypeForBand(frac),1,x,y);
-    if(u){ const boost=wildStatMul(frac); u.max=Math.round(u.max*boost); u.hp=u.max; u.dmg=Math.round(u.dmg*boost); }
+    if(u){ const boost=wildStatMul(frac); u.max=Math.round(u.max*boost); u.hp=u.max; u.dmg=Math.round(u.dmg*wildDmgMul(boost)); }
     u.ax=x; u.ay=y; u.pop=.5; fxSpr('portal',x,y,14,52,.6);
     return;
   }
@@ -1557,6 +1557,7 @@ function wildTypeForBand(frac){
   else{ if(r<.10) return 'slime'; if(r<.40) return 'brute'; if(r<.65) return 'wolf'; if(r<.85) return 'shaman'; return 'titan'; }
 }
 function wildStatMul(frac){ return .70+frac*.75; }
+function wildDmgMul(boost){ return 1+(boost-1)*.55; }
 function farFromTeams(x,y,d){
   for(let ti=1;ti<G.teams.length;ti++){ const T=G.teams[ti]; if((T.x-x)**2+(T.y-y)**2<d*d) return false; }
   return true;
@@ -1577,8 +1578,8 @@ function spawnWave(){
     const type=wildTypeForBand(frac);
     const u=addUnit(wild,type,1,x,y);
     if(u){
-      const boost=(1+G.wave*.10)*wildStatMul(frac);
-      u.max=Math.round(u.max*boost); u.hp=u.max; u.dmg=Math.round(u.dmg*boost);
+      const boost=(1+G.wave*.07)*wildStatMul(frac);
+      u.max=Math.round(u.max*boost); u.hp=u.max; u.dmg=Math.round(u.dmg*wildDmgMul(boost));
       u.ax=x; u.ay=y;
     }
     if(i<16) fxSpr('portal',x,y,20,70,.7);
