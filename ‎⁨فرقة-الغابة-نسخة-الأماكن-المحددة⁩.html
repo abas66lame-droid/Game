@@ -434,14 +434,18 @@ function islandPath(g){
 
 // ─────────────────────────── الحالة ───────────────────────────
 let G=null, running=false, last=0, acc=0;
-let shakeMag=0, shakeT=0;
-function addShake(mag,dur){ shakeMag=Math.max(shakeMag,mag); shakeT=Math.max(shakeT,dur); }
+let shakeMag=0, shakeT=0, lastShakeAt=-99;
+function addShake(mag,dur){
+  if(G&&mag<8&&G.t-lastShakeAt<.15) return;
+  lastShakeAt=G?G.t:0;
+  shakeMag=Math.max(shakeMag,mag); shakeT=Math.max(shakeT,dur);
+}
 
 let MODE='solo';   // 'solo' أو 'coop'
 let MYTEAM=1;      // رقم فريقي (٢ إذا كنت الضيف بالتعاوني)
 
 function newGame(mode,seed,forcedMods){
-  shakeMag=0; shakeT=0;
+  shakeMag=0; shakeT=0; lastShakeAt=-99;
   MODE=mode||'solo';
   const pvp=MODE==='duel';
   const coop=MODE==='coop'||pvp;
@@ -649,15 +653,22 @@ function fxSpr(name,x,y,h0,h1,life,rot){ G.fx.push({k:'i',name,x,y,h0,h1,rot:rot
 function fxPop(x,y,c){ fxSpr('boom',x,y,26,64,.42); }
 function fxRing(x,y,c){ fxSpr('ring',x,y,20,86,.5); }
 function fxHit(x,y,c){ if(Math.random()<.45) fxSpr('spark',x+rnd(-6,6),y+rnd(-8,4),16,28,.22); }
-function fxFire(x,y,scale){ G.fx.push({k:'fire',x,y,t:0,life:.55,ph:rnd(0,TAU),sc:scale||1}); }
-function fxZap(x,y,x2,y2,scale){ G.fx.push({k:'zap',x,y,x2,y2,t:0,life:.24,sc:scale||1}); }
-function fxTimeRipple(x,y,scale){ G.fx.push({k:'time',x,y,t:0,life:.55,sc:scale||1}); }
-function fxSlash(x,y,ang,c,scale){ G.fx.push({k:'slash',x,y,ang:ang||0,t:0,life:.3,c:c||'#eceff1',sc:scale||1}); }
-function fxCrystal(x,y,c,scale){ G.fx.push({k:'crystal',x,y,t:0,life:.42,c:c||'#4fc3f7',sc:scale||1}); }
-function fxBurst(x,y,c,scale){ G.fx.push({k:'burst',x,y,t:0,life:.32,c:c||'#fff',rot:rnd(0,TAU),sc:scale||1}); }
-function fxQuake(x,y,c,scale){ G.fx.push({k:'quake',x,y,t:0,life:.48,c:c||'#8d6e63',sc:scale||1}); }
-function fxSparkle(x,y,c,scale){ G.fx.push({k:'sparkle',x,y,t:0,life:.55,c:c||'#ffd54f',ph:rnd(0,TAU),sc:scale||1}); }
+function fxFire(x,y,scale){ G.fx.push({k:'fire',x,y,t:0,life:.62,ph:rnd(0,TAU),sc:scale||1}); }
+function fxZap(x,y,x2,y2,scale){ G.fx.push({k:'zap',x,y,x2,y2,t:0,life:.3,sc:scale||1}); }
+function fxTimeRipple(x,y,scale){ G.fx.push({k:'time',x,y,t:0,life:.62,sc:scale||1}); }
+function fxSlash(x,y,ang,c,scale){ G.fx.push({k:'slash',x,y,ang:ang||0,t:0,life:.36,c:c||'#eceff1',sc:scale||1}); }
+function fxCrystal(x,y,c,scale){ G.fx.push({k:'crystal',x,y,t:0,life:.48,c:c||'#4fc3f7',sc:scale||1}); }
+function fxBurst(x,y,c,scale){ G.fx.push({k:'burst',x,y,t:0,life:.38,c:c||'#fff',rot:rnd(0,TAU),sc:scale||1}); }
+function fxQuake(x,y,c,scale){ G.fx.push({k:'quake',x,y,t:0,life:.54,c:c||'#8d6e63',sc:scale||1}); }
+function fxSparkle(x,y,c,scale){ G.fx.push({k:'sparkle',x,y,t:0,life:.6,c:c||'#ffd54f',ph:rnd(0,TAU),sc:scale||1}); }
+const ATTACK_FX_KINDS=new Set(['fire','zap','time','slash','crystal','burst','quake','sparkle']);
+function attackFxBudgetOk(){
+  let n=0; for(const f of G.fx){ if(ATTACK_FX_KINDS.has(f.k)){ n++; if(n>=14) return false; } }
+  return true;
+}
 function spawnAttackFx(type,x,y,sx,sy,dmg){
+  const t=TYPES[type];
+  if(!(t&&t.legendary)&&!attackFxBudgetOk()) return;
   const sc=Math.min(2.2,.85+((dmg||14)/22));
   const ang=Math.atan2(y-sy,x-sx);
   if(type==='babydragon'){ fxFire(x,y,sc); fxSpr('boom',x,y-6,36*sc,96*sc,.42); }
