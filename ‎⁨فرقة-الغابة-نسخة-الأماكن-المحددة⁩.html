@@ -649,11 +649,43 @@ function fxSpr(name,x,y,h0,h1,life,rot){ G.fx.push({k:'i',name,x,y,h0,h1,rot:rot
 function fxPop(x,y,c){ fxSpr('boom',x,y,26,64,.42); }
 function fxRing(x,y,c){ fxSpr('ring',x,y,20,86,.5); }
 function fxHit(x,y,c){ if(Math.random()<.45) fxSpr('spark',x+rnd(-6,6),y+rnd(-8,4),16,28,.22); }
-function fxFire(x,y){ G.fx.push({k:'fire',x,y,t:0,life:.5,ph:rnd(0,TAU)}); }
-function fxZap(x,y,x2,y2){ G.fx.push({k:'zap',x,y,x2,y2,t:0,life:.22}); }
-function fxTimeRipple(x,y){ G.fx.push({k:'time',x,y,t:0,life:.5}); }
-function fxSlash(x,y,ang){ G.fx.push({k:'slash',x,y,ang:ang||0,t:0,life:.28}); }
-function fxCrystal(x,y){ G.fx.push({k:'crystal',x,y,t:0,life:.4}); }
+function fxFire(x,y,scale){ G.fx.push({k:'fire',x,y,t:0,life:.55,ph:rnd(0,TAU),sc:scale||1}); }
+function fxZap(x,y,x2,y2,scale){ G.fx.push({k:'zap',x,y,x2,y2,t:0,life:.24,sc:scale||1}); }
+function fxTimeRipple(x,y,scale){ G.fx.push({k:'time',x,y,t:0,life:.55,sc:scale||1}); }
+function fxSlash(x,y,ang,c,scale){ G.fx.push({k:'slash',x,y,ang:ang||0,t:0,life:.3,c:c||'#eceff1',sc:scale||1}); }
+function fxCrystal(x,y,c,scale){ G.fx.push({k:'crystal',x,y,t:0,life:.42,c:c||'#4fc3f7',sc:scale||1}); }
+function fxBurst(x,y,c,scale){ G.fx.push({k:'burst',x,y,t:0,life:.32,c:c||'#fff',rot:rnd(0,TAU),sc:scale||1}); }
+function fxQuake(x,y,c,scale){ G.fx.push({k:'quake',x,y,t:0,life:.48,c:c||'#8d6e63',sc:scale||1}); }
+function fxSparkle(x,y,c,scale){ G.fx.push({k:'sparkle',x,y,t:0,life:.55,c:c||'#ffd54f',ph:rnd(0,TAU),sc:scale||1}); }
+function spawnAttackFx(type,x,y,sx,sy,dmg){
+  const sc=Math.min(2.2,.85+((dmg||14)/22));
+  const ang=Math.atan2(y-sy,x-sx);
+  if(type==='babydragon'){ fxFire(x,y,sc); fxSpr('boom',x,y-6,36*sc,96*sc,.42); }
+  else if(type==='thunderspirit'){ fxZap(sx,sy-24,x,y,sc); fxSpr('spark',x,y,20*sc,32*sc,.22); }
+  else if(type==='timemage'){ fxTimeRipple(x,y,sc); }
+  else if(type==='phantom'){ fxSlash(x,y,ang,'#eceff1',sc); }
+  else if(type==='guardian'){ fxCrystal(x,y,'#4fc3f7',sc); }
+  else if(type==='fighter'){ fxSlash(x,y,ang,'#ff5252',sc); }
+  else if(type==='samurai'){ fxSlash(x,y,ang,'#ffd54f',sc*1.15); fxSpr('spark',x,y,20*sc,34*sc,.22); }
+  else if(type==='knight'){ fxCrystal(x,y,'#90caf9',sc*.9); }
+  else if(type==='giant'){ fxQuake(x,y,'#8d6e63',sc*1.1); }
+  else if(type==='archer'){ fxBurst(x,y,'#a5d6a7',sc); }
+  else if(type==='scout'){ fxBurst(x,y,'#64b5f6',sc*.8); }
+  else if(type==='mage'){ fxBurst(x,y,'#ce93d8',sc*1.1); fxSparkle(x,y,'#e1bee7',sc*.8); }
+  else if(type==='bomber'){ fxQuake(x,y,'#ff8a65',sc*1.25); fxFire(x,y,sc); }
+  else if(type==='collect'){ fxSparkle(x,y,'#ffd54f',sc); }
+  else if(type==='druid'){ fxSparkle(x,y,'#81c784',sc); }
+  else if(type==='healer'){ fxSparkle(x,y,'#4dd0e1',sc*.8); }
+  else if(type==='miner'){ fxBurst(x,y,'#ffb300',sc*.85); }
+  else if(type==='titan'){ fxQuake(x,y,'#795548',sc*1.3); }
+  else if(type==='grove'){ fxQuake(x,y,'#4e7942',sc*1.4); }
+  else if(type==='elite'){ fxBurst(x,y,'#a8602f',sc*1.1); }
+  else if(type==='brute'){ fxBurst(x,y,'#8d6e63',sc); }
+  else if(type==='wolf'){ fxSlash(x,y,ang,'#546e7a',sc*.9); }
+  else if(type==='shaman'){ fxBurst(x,y,'#ce93d8',sc); }
+  else if(type==='saboteur'){ fxFire(x,y,sc*.8); }
+  else if(type==='boss'){ fxQuake(x,y,'#c62828',sc*1.5); }
+}
 
 function dropGems(x,y,n){
   for(let i=0;i<n;i++){ const a=rnd(0,TAU), s=rnd(30,110);
@@ -855,10 +887,7 @@ function updateUnits(dt){
               spr:t.pj||'orb',ang:0});
           } else {
             hurt(u.tgt,dmg,u); applySpecialOnHit(u,u.tgt);
-            if(t.legendary){
-              if(u.type==='phantom') fxSlash(u.tgt.x,u.tgt.y-10,Math.atan2(u.tgt.y-u.y,u.tgt.x-u.x));
-              else if(u.type==='guardian') fxCrystal(u.tgt.x,u.tgt.y-10);
-            }
+            spawnAttackFx(u.type,u.tgt.x,u.tgt.y-10,u.x,u.y-10,dmg);
           }
           u.cd=t.rate*(u.slowT>0?1.6:1); u.pop=.18;
           if(u.T.player&&!t.shot) beep(180,.04,'square',.02);
@@ -917,12 +946,7 @@ function updateShots(dt){
     if(d<12){
       hurt(s.tgt,s.dmg,s.src);
       applySpecialOnHit(s.src,s.tgt);
-      if(s.src&&TYPES[s.src.type]&&TYPES[s.src.type].legendary){
-        const lt=s.src.type;
-        if(lt==='babydragon'){ fxFire(s.tgt.x,s.tgt.y-10); fxSpr('boom',s.tgt.x,s.tgt.y-6,36,96,.42); }
-        else if(lt==='thunderspirit'){ fxZap(s.src.x,s.src.y-24,s.tgt.x,s.tgt.y-10); fxSpr('spark',s.tgt.x,s.tgt.y,20,32,.22); }
-        else if(lt==='timemage'){ fxTimeRipple(s.tgt.x,s.tgt.y-8); }
-      }
+      if(s.src&&TYPES[s.src.type]) spawnAttackFx(s.src.type,s.tgt.x,s.tgt.y-10,s.src.x,s.src.y-20,s.dmg);
       if(s.splash) fxSpr('boom',s.tgt.x,s.tgt.y-6,30,s.splash*1.5,.4);
       if(s.splash){
         fxRing(s.tgt.x,s.tgt.y,s.c);
@@ -2671,39 +2695,73 @@ function drawFx(){
       ctx.strokeStyle=f.c; ctx.lineWidth=3;
       ctx.beginPath(); ctx.moveTo(f.x,f.y); ctx.lineTo(f.x2,f.y2); ctx.stroke();
     } else if(f.k==='fire'){
+      const sc=f.sc||1;
       ctx.save(); ctx.translate(f.x,f.y);
-      for(let i=0;i<6;i++){
-        const a=f.ph+i*1.05+p*3, r=6+p*24;
+      for(let i=0;i<8;i++){
+        const a=f.ph+i*.9+p*3, r=(8+p*30)*sc;
         ctx.fillStyle=i%2?'#ff7043':'#ffc107';
-        ctx.beginPath(); ctx.arc(Math.cos(a)*r*.5,-p*32+Math.sin(a)*r*.3,5*(1-p*.6),0,TAU); ctx.fill();
+        ctx.beginPath(); ctx.arc(Math.cos(a)*r*.55,-p*40*sc+Math.sin(a)*r*.32,6*sc*(1-p*.6),0,TAU); ctx.fill();
       }
       ctx.restore();
     } else if(f.k==='zap'){
+      const sc=f.sc||1;
       ctx.save();
-      ctx.strokeStyle='#ffeb3b'; ctx.lineWidth=3; ctx.lineJoin='round';
-      const segs=5, dx=(f.x2-f.x)/segs, dy=(f.y2-f.y)/segs;
+      ctx.strokeStyle='#ffeb3b'; ctx.lineWidth=3.5*sc; ctx.lineJoin='round';
+      const segs=6, dx=(f.x2-f.x)/segs, dy=(f.y2-f.y)/segs;
       ctx.beginPath(); ctx.moveTo(f.x,f.y);
-      for(let i=1;i<segs;i++) ctx.lineTo(f.x+dx*i+rnd(-7,7),f.y+dy*i+rnd(-7,7));
+      for(let i=1;i<segs;i++) ctx.lineTo(f.x+dx*i+rnd(-9,9)*sc,f.y+dy*i+rnd(-9,9)*sc);
       ctx.lineTo(f.x2,f.y2); ctx.stroke();
+      ctx.strokeStyle='#fff9c4'; ctx.lineWidth=1.4*sc; ctx.stroke();
       ctx.restore();
     } else if(f.k==='time'){
+      const sc=f.sc||1;
       ctx.save();
-      ctx.strokeStyle='#b39ddb'; ctx.lineWidth=2.5;
-      ctx.beginPath(); ctx.arc(f.x,f.y,10+p*28,0,TAU); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(f.x,f.y); ctx.lineTo(f.x,f.y-8-p*14); ctx.stroke();
+      ctx.strokeStyle='#b39ddb'; ctx.lineWidth=2.6*sc;
+      ctx.beginPath(); ctx.arc(f.x,f.y,(10+p*34)*sc,0,TAU); ctx.stroke();
+      ctx.strokeStyle='#e1d5f7'; ctx.lineWidth=1.6*sc;
+      ctx.beginPath(); ctx.arc(f.x,f.y,(6+p*20)*sc,0,TAU); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(f.x,f.y); ctx.lineTo(f.x,f.y-(8+p*16)*sc); ctx.stroke();
       ctx.restore();
     } else if(f.k==='slash'){
+      const sc=f.sc||1;
       ctx.save(); ctx.translate(f.x,f.y); ctx.rotate(f.ang);
-      ctx.strokeStyle='#eceff1'; ctx.lineWidth=4;
-      ctx.beginPath(); ctx.arc(0,0,18+p*8,-.6,.6); ctx.stroke();
+      ctx.strokeStyle=f.c; ctx.lineWidth=5*sc;
+      ctx.beginPath(); ctx.arc(0,0,(20+p*10)*sc,-.65,.65); ctx.stroke();
+      ctx.strokeStyle='rgba(255,255,255,.7)'; ctx.lineWidth=2*sc;
+      ctx.beginPath(); ctx.arc(0,0,(20+p*10)*sc,-.55,.55); ctx.stroke();
       ctx.restore();
     } else if(f.k==='crystal'){
+      const sc=f.sc||1;
       ctx.save(); ctx.translate(f.x,f.y);
-      ctx.fillStyle='#4fc3f7';
-      for(let i=0;i<5;i++){ const a=i/5*TAU, r=p*28;
+      ctx.fillStyle=f.c;
+      for(let i=0;i<6;i++){ const a=i/6*TAU, r=p*32*sc;
         ctx.beginPath(); ctx.moveTo(Math.cos(a)*r,Math.sin(a)*r);
-        ctx.lineTo(Math.cos(a+.28)*(r+9),Math.sin(a+.28)*(r+9));
-        ctx.lineTo(Math.cos(a-.28)*(r+9),Math.sin(a-.28)*(r+9)); ctx.closePath(); ctx.fill(); }
+        ctx.lineTo(Math.cos(a+.26)*(r+10*sc),Math.sin(a+.26)*(r+10*sc));
+        ctx.lineTo(Math.cos(a-.26)*(r+10*sc),Math.sin(a-.26)*(r+10*sc)); ctx.closePath(); ctx.fill(); }
+      ctx.restore();
+    } else if(f.k==='burst'){
+      const sc=f.sc||1, n=8;
+      ctx.save(); ctx.translate(f.x,f.y);
+      ctx.strokeStyle=f.c; ctx.lineWidth=3*sc; ctx.lineCap='round';
+      for(let i=0;i<n;i++){ const a=i/n*TAU+f.rot;
+        ctx.beginPath(); ctx.moveTo(Math.cos(a)*7*sc,Math.sin(a)*7*sc);
+        ctx.lineTo(Math.cos(a)*(7+p*30)*sc,Math.sin(a)*(7+p*30)*sc); ctx.stroke(); }
+      ctx.restore();
+    } else if(f.k==='quake'){
+      const sc=f.sc||1;
+      ctx.save(); ctx.translate(f.x,f.y);
+      ctx.strokeStyle=f.c; ctx.lineWidth=4*sc;
+      ctx.beginPath(); ctx.ellipse(0,0,(10+p*38)*sc,(10+p*38)*sc*.42,0,0,TAU); ctx.stroke();
+      ctx.fillStyle=f.c;
+      for(let i=0;i<6;i++){ const a=i/6*TAU, r=p*36*sc;
+        ctx.beginPath(); ctx.arc(Math.cos(a)*r,Math.sin(a)*r*.42-p*18*sc,3.4*sc,0,TAU); ctx.fill(); }
+      ctx.restore();
+    } else if(f.k==='sparkle'){
+      const sc=f.sc||1, n=5;
+      ctx.save(); ctx.translate(f.x,f.y);
+      ctx.fillStyle=f.c;
+      for(let i=0;i<n;i++){ const a=f.ph+i/n*TAU+p*4, r=24*sc*p;
+        ctx.beginPath(); ctx.arc(Math.cos(a)*r,-p*24*sc+Math.sin(a)*r*.55,3.2*sc,0,TAU); ctx.fill(); }
       ctx.restore();
     }
   }
