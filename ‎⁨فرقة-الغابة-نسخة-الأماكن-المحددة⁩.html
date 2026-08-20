@@ -327,6 +327,8 @@ const TYPES={
   knight  :{n:'الفارس', e:'🛡️', c:'#90caf9', hp:190, dmg:19, rng:38, spd:.90, rate:.85, guard:1, desc:'درع يمتص جزءًا من الضرر عن الفريق.'},
   druid   :{n:'حارس الغابة', e:'🌿', c:'#81c784', hp:120, dmg:13, rng:110, spd:.95, rate:1.05, shot:1, pj:'orb', heal:6, desc:'يهاجم عن بعد ويشفي القليل بنفس الوقت.'},
   samurai :{n:'الساموراي', e:'⚔️', c:'#ffcc80', hp:130, dmg:28, rng:42, spd:1.08, rate:.90, crit:.18, desc:'ضربات حادة مع فرصة ضربة حرجة مضاعفة.'},
+  frost   :{n:'ساحرة الجليد', e:'❄️', c:'#4fc3f7', hp:75, dmg:12, rng:130, spd:1.0, rate:1.1, shot:1, pj:'orb', special:'chill', desc:'كل سهم جليدي يُبطئ حركة العدو المصاب لفترة قصيرة.'},
+  venom   :{n:'الرامي السام', e:'🏹', c:'#7cb342', hp:78, dmg:10, rng:145, spd:1.0, rate:.68, shot:1, pj:'arrow', special:'poison', desc:'سهامه تسمم العدو فيفقد صحته تدريجيًا بمرور الوقت.'},
   // وحوش برية
   slime   :{n:'وحش',      e:'👾', c:'#7e57c2', hp:80,  dmg:7,  rng:32,  spd:.72, rate:1.0, wild:1},
   boss    :{n:'زعيم الغابة', e:'🐲', c:'#c62828', hp:1500, dmg:20, rng:50, spd:.50, rate:1.45, wild:1, boss:1},
@@ -336,6 +338,7 @@ const TYPES={
   titan   :{n:'العملاق الحجري', e:'🗿', c:'#795548', hp:520, dmg:25, rng:44, spd:.48, rate:1.5, wild:1},
   saboteur:{n:'المخرّب', e:'🧨', c:'#6d4c41', hp:110, dmg:55, rng:38, spd:1.22, rate:.85, wild:1, buildingOnly:1},
   boulder :{n:'حارس الصخور', e:'🪨', c:'#5d4a42', hp:680, dmg:32, rng:48, spd:.44, rate:1.55, wild:1},
+  viper   :{n:'أفعى الرمال', e:'🐍', c:'#7cb342', hp:150, dmg:14, rng:36, spd:1.35, rate:.75, wild:1, special:'poison'},
   elite   :{n:'المقاتل الشرس', e:'🐗', c:'#8d4e2a', hp:900, dmg:30, rng:42, spd:.65, rate:1.05, wild:1},
   grove   :{n:'عملاق الغابة', e:'🌳', c:'#4e7942', hp:2200, dmg:26, rng:48, spd:.40, rate:1.3, wild:1},
   cannon  :{n:'المدفع', e:'🔫', c:'#607d8b', hp:420, dmg:24, rng:175, spd:0, rate:.9, shot:1, splash:42, pj:'bomb'},
@@ -389,7 +392,7 @@ const BOSSES=[
     movesByPhase:[['slam','charge','teleport'],['slam','charge','barrage','teleport'],['slam','charge','barrage','teleport']] },
 ];
 
-const HERO_KEYS=['fighter','archer','giant','healer','miner','mage','scout','bomber','collect','knight','druid','samurai'];
+const HERO_KEYS=['fighter','archer','giant','healer','miner','mage','scout','bomber','collect','knight','druid','samurai','frost','venom'];
 
 const TEAMS=[
   {n:'البرية',      c:'#795548', wild:true},
@@ -589,6 +592,10 @@ function applySpecialOnHit(src,tgt){
   const t=TYPES[src.type]; if(!t||!t.special) return;
   if(t.special==='burn'){
     tgt.burnT=3; tgt.burnDmg=Math.max(3,src.dmg*.22); tgt.burnSrc=src;
+  }else if(t.special==='chill'){
+    tgt.slowT=Math.max(tgt.slowT||0,1.2);
+  }else if(t.special==='poison'){
+    tgt.poisonT=4; tgt.poisonDmg=Math.max(2,src.dmg*.15); tgt.poisonSrc=src;
   }else if(t.special==='chain'){
     let best=null,bd=130*130;
     for(const e of G.units){ if(e.dead||e===tgt||areAllies(src.T,e.T)) continue;
@@ -696,6 +703,9 @@ function spawnAttackFx(type,x,y,sx,sy,dmg){
   else if(type==='druid'){ fxSparkle(x,y,'#81c784',sc); }
   else if(type==='healer'){ fxSparkle(x,y,'#4dd0e1',sc*.8); }
   else if(type==='miner'){ fxBurst(x,y,'#ffb300',sc*.85); }
+  else if(type==='frost'){ fxSparkle(x,y,'#b3e5fc',sc); }
+  else if(type==='venom'){ fxSparkle(x,y,'#c6ff00',sc); }
+  else if(type==='viper'){ fxSparkle(x,y,'#aeea00',sc*.85); }
   else if(type==='titan'){ fxQuake(x,y,'#795548',sc*1.3); }
   else if(type==='boulder'){ fxQuake(x,y,'#5d4a42',sc*1.45); }
   else if(type==='grove'){ fxQuake(x,y,'#4e7942',sc*1.4); }
@@ -874,6 +884,7 @@ function updateUnits(dt){
     if(u.allyShieldT>0) u.allyShieldT-=dt;
     if(u.invisT>0) u.invisT-=dt;
     if(u.burnT>0){ u.burnT-=dt; hurt(u,u.burnDmg*dt,u.burnSrc); }
+    if(u.poisonT>0){ u.poisonT-=dt; hurt(u,u.poisonDmg*dt,u.poisonSrc); }
     // اختيار هدف
     if(u.re<=0||!u.tgt||u.tgt.dead){ u.tgt=findTarget(u); u.re=.35+rnd(0,.25); }
     const stationary=u.T.wild||u.type==='cannon'||u.stationaryAlly;
@@ -1573,7 +1584,7 @@ function updateEvents(dt){
 function wildTypeForBand(frac){
   const r=RND();
   if(frac<.35){ return r<.9?'slime':'brute'; }
-  else if(frac<.7){ if(r<.40) return 'slime'; if(r<.70) return 'brute'; if(r<.88) return 'wolf'; return 'shaman'; }
+  else if(frac<.7){ if(r<.40) return 'slime'; if(r<.70) return 'brute'; if(r<.85) return 'wolf'; if(r<.94) return 'shaman'; return 'viper'; }
   else{ if(r<.10) return 'slime'; if(r<.40) return 'brute'; if(r<.65) return 'wolf'; if(r<.85) return 'shaman'; return r<.93?'titan':'boulder'; }
 }
 function wildStatMul(frac){ return .70+frac*.75; }
@@ -2545,6 +2556,33 @@ function drawExtraCharacter(type,x,y,h,face,hit){
     ctx.fillStyle='#ffca28'; ctx.beginPath(); ctx.arc(-9,-70,4,0,TAU); ctx.arc(9,-70,4,0,TAU); ctx.fill();
     ctx.fillStyle='#3e2723'; ctx.beginPath(); ctx.arc(-9,-70,2,0,TAU); ctx.arc(9,-70,2,0,TAU); ctx.fill();
     ctx.strokeStyle='#5d4037'; ctx.lineWidth=13; ctx.beginPath(); ctx.moveTo(-24,-10); ctx.lineTo(-50,40); ctx.moveTo(24,-10); ctx.lineTo(50,40); ctx.stroke();
+  }else if(type==='frost'){
+    ctx.fillStyle=flash?'#fff':'#4fc3f7'; ctx.beginPath(); ctx.moveTo(-24,20); ctx.lineTo(-20,-48); ctx.quadraticCurveTo(0,-64,20,-48); ctx.lineTo(24,20); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#e1f5fe'; ctx.beginPath(); ctx.arc(0,-58,17,0,TAU); ctx.fill();
+    ctx.fillStyle='#01579b'; ctx.beginPath(); ctx.arc(-6,-59,2.6,0,TAU); ctx.arc(6,-59,2.6,0,TAU); ctx.fill();
+    ctx.strokeStyle='#b3e5fc'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.arc(30,-10,20,-.9,.9); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(30,-30); ctx.lineTo(30,10); ctx.stroke();
+    for(let i=0;i<3;i++){ const yy=-56+i*18;
+      ctx.fillStyle='#e1f5fe'; ctx.beginPath(); ctx.moveTo(-14,yy); ctx.lineTo(-24,yy-8); ctx.lineTo(-14,yy+6); ctx.closePath(); ctx.fill(); }
+  }else if(type==='venom'){
+    ctx.fillStyle=flash?'#fff':'#558b2f'; ctx.beginPath(); ctx.moveTo(-24,20); ctx.lineTo(-20,-48); ctx.quadraticCurveTo(0,-64,20,-48); ctx.lineTo(24,20); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#aed581'; ctx.beginPath(); ctx.arc(0,-58,17,0,TAU); ctx.fill();
+    ctx.fillStyle='#33691e'; ctx.beginPath(); ctx.arc(-6,-59,2.6,0,TAU); ctx.arc(6,-59,2.6,0,TAU); ctx.fill();
+    ctx.fillStyle='#7cb342'; ctx.beginPath(); ctx.ellipse(28,-6,9,15,-.3,0,TAU); ctx.fill();
+    ctx.fillStyle='#c6ff00'; ctx.beginPath(); ctx.arc(28,-10,3,0,TAU); ctx.fill();
+    ctx.strokeStyle='#33691e'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(-16,-52); ctx.lineTo(-26,-64); ctx.moveTo(16,-52); ctx.lineTo(26,-64); ctx.stroke();
+  }else if(type==='viper'){
+    ctx.fillStyle=flash?'#fff':'#7cb342';
+    ctx.beginPath(); ctx.moveTo(-30,10); ctx.quadraticCurveTo(-10,-4,-26,-20); ctx.quadraticCurveTo(-6,-28,10,-14); ctx.quadraticCurveTo(24,-4,20,10);
+    ctx.quadraticCurveTo(4,2,-10,10); ctx.quadraticCurveTo(-20,16,-30,10); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#33691e';
+    for(let i=0;i<4;i++){ ctx.beginPath(); ctx.arc(-20+i*12,4+((i%2)?-6:4),3,0,TAU); ctx.fill(); }
+    ctx.fillStyle='#c6ff00'; ctx.beginPath(); ctx.arc(20,4,7,0,TAU); ctx.fill();
+    ctx.fillStyle='#b71c1c'; ctx.beginPath(); ctx.arc(23,3,1.8,0,TAU); ctx.arc(19,7,1.8,0,TAU); ctx.fill();
+    ctx.strokeStyle='#c6ff00'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(28,4); ctx.lineTo(38,0); ctx.moveTo(28,4); ctx.lineTo(38,8); ctx.stroke();
   }else if(type==='boulder'){
     ctx.fillStyle=flash?'#fff':'#5d4a42';
     ctx.beginPath(); ctx.arc(0,-34,34,0,TAU); ctx.fill();
@@ -2689,7 +2727,7 @@ function drawUnit(u){
     else if(bossKey==='colossus') drawStoneColossus(0,u.size*.6-bob,h,bob,u.hitT);
     else if(bossKey==='spirit') drawAncientSpirit(0,u.size*.6-bob,h,bob,u.hitT);
     else drawFinalBoss(0,u.size*.6-bob,h,bob,u.hitT);
-  } else if(['knight','druid','samurai','wolf','shaman','titan','saboteur','elite','grove','cannon','sprite','boulder','timemage','babydragon','thunderspirit','phantom','guardian'].includes(u.type)){
+  } else if(['knight','druid','samurai','wolf','shaman','titan','saboteur','elite','grove','cannon','sprite','boulder','viper','frost','venom','timemage','babydragon','thunderspirit','phantom','guardian'].includes(u.type)){
     drawExtraCharacter(u.type,0,u.size*.6-bob,h,u.face||1,u.hitT);
   } else {
     if((u.face||1)<0) ctx.scale(-1,1);
@@ -3179,7 +3217,7 @@ function makeSnap(){
   for(const u of G.units){ if(u.dead) continue;
     U.push([u.id,u.T.i,HERO_KEYS.indexOf(u.type)>=0?HERO_KEYS.indexOf(u.type):
       (u.type==='slime'?20:u.type==='brute'?21:u.type==='boss'?22:u.type==='wolf'?23:u.type==='shaman'?24:u.type==='titan'?25:u.type==='saboteur'?26:u.type==='elite'?27:u.type==='grove'?28:u.type==='cannon'?29:u.type==='sprite'?30:
-       u.type==='timemage'?31:u.type==='babydragon'?32:u.type==='thunderspirit'?33:u.type==='phantom'?34:u.type==='guardian'?35:u.type==='boulder'?36:26),
+       u.type==='timemage'?31:u.type==='babydragon'?32:u.type==='thunderspirit'?33:u.type==='phantom'?34:u.type==='guardian'?35:u.type==='boulder'?36:u.type==='viper'?37:26),
       u.lvl,Math.round(u.x),Math.round(u.y),Math.round(u.hp),Math.round(u.max),u.face||1]); }
   const TS=G.teams.slice(1).map(T=>[Math.round(T.x),Math.round(T.y),T.gems,T.dead?1:0,Math.round(T.dashCd*10)]);
   const CH=G.chests.map(c=>[Math.round(c.x),Math.round(c.y),c.big?1:0,c.super?1:0,c.isMimic?1:0]);
@@ -3203,7 +3241,7 @@ function makeSnap(){
           GS:G.goldSpirit?[Math.round(G.goldSpirit.x),Math.round(G.goldSpirit.y),Math.round(G.goldSpirit.t*10)]:null,
           U,TS,CH,GM,RS,HT,SO};
 }
-const SNAPKEY=[...HERO_KEYS,'','','','','','','','','slime','brute','boss','wolf','shaman','titan','saboteur','elite','grove','cannon','sprite','timemage','babydragon','thunderspirit','phantom','guardian','boulder'];
+const SNAPKEY=[...HERO_KEYS,'','','','','','','slime','brute','boss','wolf','shaman','titan','saboteur','elite','grove','cannon','sprite','timemage','babydragon','thunderspirit','phantom','guardian','boulder','viper'];
 function applySnap(s){
   if(!G||!G.coop) return;
   G.time=s.t/10; G.wave=s.w; G.lives=s.l; G.shared=s.sh; G.bossDown=!!s.bd; G.bossTier=s.bt||0;
