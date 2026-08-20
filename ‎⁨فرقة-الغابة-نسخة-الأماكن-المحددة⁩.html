@@ -329,6 +329,8 @@ const TYPES={
   samurai :{n:'الساموراي', e:'⚔️', c:'#ffcc80', hp:130, dmg:28, rng:42, spd:1.08, rate:.90, crit:.18, desc:'ضربات حادة مع فرصة ضربة حرجة مضاعفة.'},
   frost   :{n:'ساحرة الجليد', e:'❄️', c:'#4fc3f7', hp:75, dmg:12, rng:130, spd:1.0, rate:1.1, shot:1, pj:'orb', special:'chill', desc:'كل سهم جليدي يُبطئ حركة العدو المصاب لفترة قصيرة.'},
   venom   :{n:'الرامي السام', e:'🏹', c:'#7cb342', hp:78, dmg:10, rng:145, spd:1.0, rate:.68, shot:1, pj:'arrow', special:'poison', desc:'سهامه تسمم العدو فيفقد صحته تدريجيًا بمرور الوقت.'},
+  vampire :{n:'الفارس الدموي', e:'🗡️', c:'#8e0e2e', hp:150, dmg:17, rng:36, spd:1.0, rate:.85, special:'lifesteal', desc:'يستعيد جزءًا من صحته مع كل ضربة يسددها.'},
+  twin    :{n:'المبارز المزدوج', e:'⚔️', c:'#ab47bc', hp:95, dmg:13, rng:38, spd:1.15, rate:.75, special:'twin', desc:'لديه فرصة جيدة لتسديد ضربة إضافية سريعة فورًا.'},
   // وحوش برية
   slime   :{n:'وحش',      e:'👾', c:'#7e57c2', hp:80,  dmg:7,  rng:32,  spd:.72, rate:1.0, wild:1},
   boss    :{n:'زعيم الغابة', e:'🐲', c:'#c62828', hp:1500, dmg:20, rng:50, spd:.50, rate:1.45, wild:1, boss:1},
@@ -339,6 +341,7 @@ const TYPES={
   saboteur:{n:'المخرّب', e:'🧨', c:'#6d4c41', hp:110, dmg:55, rng:38, spd:1.22, rate:.85, wild:1, buildingOnly:1},
   boulder :{n:'حارس الصخور', e:'🪨', c:'#5d4a42', hp:680, dmg:32, rng:48, spd:.44, rate:1.55, wild:1},
   viper   :{n:'أفعى الرمال', e:'🐍', c:'#7cb342', hp:150, dmg:14, rng:36, spd:1.35, rate:.75, wild:1, special:'poison'},
+  bee     :{n:'نحلة الغابة', e:'🐝', c:'#ffca28', hp:55, dmg:6, rng:60, spd:1.5, rate:.55, shot:1, pj:'arrow', wild:1},
   elite   :{n:'المقاتل الشرس', e:'🐗', c:'#8d4e2a', hp:900, dmg:30, rng:42, spd:.65, rate:1.05, wild:1},
   grove   :{n:'عملاق الغابة', e:'🌳', c:'#4e7942', hp:2200, dmg:26, rng:48, spd:.40, rate:1.3, wild:1},
   cannon  :{n:'المدفع', e:'🔫', c:'#607d8b', hp:420, dmg:24, rng:175, spd:0, rate:.9, shot:1, splash:42, pj:'bomb'},
@@ -392,7 +395,7 @@ const BOSSES=[
     movesByPhase:[['slam','charge','teleport'],['slam','charge','barrage','teleport'],['slam','charge','barrage','teleport']] },
 ];
 
-const HERO_KEYS=['fighter','archer','giant','healer','miner','mage','scout','bomber','collect','knight','druid','samurai','frost','venom'];
+const HERO_KEYS=['fighter','archer','giant','healer','miner','mage','scout','bomber','collect','knight','druid','samurai','frost','venom','vampire','twin'];
 
 const TEAMS=[
   {n:'البرية',      c:'#795548', wild:true},
@@ -596,6 +599,10 @@ function applySpecialOnHit(src,tgt){
     tgt.slowT=Math.max(tgt.slowT||0,1.2);
   }else if(t.special==='poison'){
     tgt.poisonT=4; tgt.poisonDmg=Math.max(2,src.dmg*.15); tgt.poisonSrc=src;
+  }else if(t.special==='lifesteal'){
+    src.hp=Math.min(src.max,src.hp+src.dmg*.4);
+  }else if(t.special==='twin'){
+    if(Math.random()<.4) hurt(tgt,src.dmg*.5,src);
   }else if(t.special==='chain'){
     let best=null,bd=130*130;
     for(const e of G.units){ if(e.dead||e===tgt||areAllies(src.T,e.T)) continue;
@@ -706,6 +713,9 @@ function spawnAttackFx(type,x,y,sx,sy,dmg){
   else if(type==='frost'){ fxSparkle(x,y,'#b3e5fc',sc); }
   else if(type==='venom'){ fxSparkle(x,y,'#c6ff00',sc); }
   else if(type==='viper'){ fxSparkle(x,y,'#aeea00',sc*.85); }
+  else if(type==='vampire'){ fxSparkle(x,y,'#8e0e2e',sc); }
+  else if(type==='twin'){ fxSlash(x,y,ang,'#ab47bc',sc); }
+  else if(type==='bee'){ fxBurst(x,y,'#ffca28',sc*.7); }
   else if(type==='titan'){ fxQuake(x,y,'#795548',sc*1.3); }
   else if(type==='boulder'){ fxQuake(x,y,'#5d4a42',sc*1.45); }
   else if(type==='grove'){ fxQuake(x,y,'#4e7942',sc*1.4); }
@@ -1583,7 +1593,7 @@ function updateEvents(dt){
 
 function wildTypeForBand(frac){
   const r=RND();
-  if(frac<.35){ return r<.9?'slime':'brute'; }
+  if(frac<.35){ if(r<.78) return 'slime'; if(r<.92) return 'brute'; return 'bee'; }
   else if(frac<.7){ if(r<.40) return 'slime'; if(r<.70) return 'brute'; if(r<.85) return 'wolf'; if(r<.94) return 'shaman'; return 'viper'; }
   else{ if(r<.10) return 'slime'; if(r<.40) return 'brute'; if(r<.65) return 'wolf'; if(r<.85) return 'shaman'; return r<.93?'titan':'boulder'; }
 }
@@ -2556,6 +2566,34 @@ function drawExtraCharacter(type,x,y,h,face,hit){
     ctx.fillStyle='#ffca28'; ctx.beginPath(); ctx.arc(-9,-70,4,0,TAU); ctx.arc(9,-70,4,0,TAU); ctx.fill();
     ctx.fillStyle='#3e2723'; ctx.beginPath(); ctx.arc(-9,-70,2,0,TAU); ctx.arc(9,-70,2,0,TAU); ctx.fill();
     ctx.strokeStyle='#5d4037'; ctx.lineWidth=13; ctx.beginPath(); ctx.moveTo(-24,-10); ctx.lineTo(-50,40); ctx.moveTo(24,-10); ctx.lineTo(50,40); ctx.stroke();
+  }else if(type==='vampire'){
+    ctx.fillStyle=flash?'#fff':'#212121'; ctx.beginPath(); ctx.roundRect(-24,-52,48,66,12); ctx.fill();
+    ctx.fillStyle=flash?'#fff':'#8e0e2e';
+    ctx.beginPath(); ctx.moveTo(-24,-40); ctx.lineTo(-44,20); ctx.lineTo(-24,4); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(24,-40); ctx.lineTo(44,20); ctx.lineTo(24,4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#e0c9a6'; ctx.beginPath(); ctx.arc(0,-66,22,0,TAU); ctx.fill();
+    ctx.fillStyle='#c62828'; ctx.beginPath(); ctx.arc(-7,-67,2.6,0,TAU); ctx.arc(7,-67,2.6,0,TAU); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.moveTo(-4,-58); ctx.lineTo(-2,-53); ctx.lineTo(-6,-53); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(4,-58); ctx.lineTo(6,-53); ctx.lineTo(2,-53); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='#eceff1'; ctx.lineWidth=8; ctx.beginPath(); ctx.moveTo(30,-30); ctx.lineTo(52,32); ctx.stroke();
+  }else if(type==='twin'){
+    ctx.fillStyle=flash?'#fff':'#6a1b9a'; ctx.beginPath(); ctx.moveTo(-22,20); ctx.lineTo(-18,-46); ctx.quadraticCurveTo(0,-62,18,-46); ctx.lineTo(22,20); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#ce93d8'; ctx.beginPath(); ctx.arc(0,-56,17,0,TAU); ctx.fill();
+    ctx.fillStyle='#4a148c'; ctx.beginPath(); ctx.arc(-6,-57,2.6,0,TAU); ctx.arc(6,-57,2.6,0,TAU); ctx.fill();
+    ctx.strokeStyle='#eceff1'; ctx.lineWidth=6;
+    ctx.beginPath(); ctx.moveTo(24,-30); ctx.lineTo(50,-4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-24,-30); ctx.lineTo(-50,-4); ctx.stroke();
+  }else if(type==='bee'){
+    ctx.fillStyle=flash?'#fff':'#ffca28'; ctx.beginPath(); ctx.ellipse(0,-30,22,17,0,0,TAU); ctx.fill();
+    ctx.fillStyle='#3e2723';
+    ctx.beginPath(); ctx.ellipse(-9,-30,4,17,0,0,TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(9,-30,4,17,0,0,TAU); ctx.fill();
+    ctx.fillStyle='rgba(200,230,255,.7)';
+    ctx.beginPath(); ctx.ellipse(-10,-46,14,8,-.4,0,TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(10,-46,14,8,.4,0,TAU); ctx.fill();
+    ctx.fillStyle='#3e2723'; ctx.beginPath(); ctx.arc(-6,-40,3,0,TAU); ctx.arc(6,-40,3,0,TAU); ctx.fill();
+    ctx.strokeStyle='#3e2723'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(-5,-44); ctx.lineTo(-10,-52); ctx.moveTo(5,-44); ctx.lineTo(10,-52); ctx.stroke();
   }else if(type==='frost'){
     ctx.fillStyle=flash?'#fff':'#4fc3f7'; ctx.beginPath(); ctx.moveTo(-24,20); ctx.lineTo(-20,-48); ctx.quadraticCurveTo(0,-64,20,-48); ctx.lineTo(24,20); ctx.closePath(); ctx.fill();
     ctx.fillStyle='#e1f5fe'; ctx.beginPath(); ctx.arc(0,-58,17,0,TAU); ctx.fill();
@@ -2727,7 +2765,7 @@ function drawUnit(u){
     else if(bossKey==='colossus') drawStoneColossus(0,u.size*.6-bob,h,bob,u.hitT);
     else if(bossKey==='spirit') drawAncientSpirit(0,u.size*.6-bob,h,bob,u.hitT);
     else drawFinalBoss(0,u.size*.6-bob,h,bob,u.hitT);
-  } else if(['knight','druid','samurai','wolf','shaman','titan','saboteur','elite','grove','cannon','sprite','boulder','viper','frost','venom','timemage','babydragon','thunderspirit','phantom','guardian'].includes(u.type)){
+  } else if(['knight','druid','samurai','wolf','shaman','titan','saboteur','elite','grove','cannon','sprite','boulder','viper','bee','frost','venom','vampire','twin','timemage','babydragon','thunderspirit','phantom','guardian'].includes(u.type)){
     drawExtraCharacter(u.type,0,u.size*.6-bob,h,u.face||1,u.hitT);
   } else {
     if((u.face||1)<0) ctx.scale(-1,1);
@@ -3217,7 +3255,7 @@ function makeSnap(){
   for(const u of G.units){ if(u.dead) continue;
     U.push([u.id,u.T.i,HERO_KEYS.indexOf(u.type)>=0?HERO_KEYS.indexOf(u.type):
       (u.type==='slime'?20:u.type==='brute'?21:u.type==='boss'?22:u.type==='wolf'?23:u.type==='shaman'?24:u.type==='titan'?25:u.type==='saboteur'?26:u.type==='elite'?27:u.type==='grove'?28:u.type==='cannon'?29:u.type==='sprite'?30:
-       u.type==='timemage'?31:u.type==='babydragon'?32:u.type==='thunderspirit'?33:u.type==='phantom'?34:u.type==='guardian'?35:u.type==='boulder'?36:u.type==='viper'?37:26),
+       u.type==='timemage'?31:u.type==='babydragon'?32:u.type==='thunderspirit'?33:u.type==='phantom'?34:u.type==='guardian'?35:u.type==='boulder'?36:u.type==='viper'?37:u.type==='bee'?38:26),
       u.lvl,Math.round(u.x),Math.round(u.y),Math.round(u.hp),Math.round(u.max),u.face||1]); }
   const TS=G.teams.slice(1).map(T=>[Math.round(T.x),Math.round(T.y),T.gems,T.dead?1:0,Math.round(T.dashCd*10)]);
   const CH=G.chests.map(c=>[Math.round(c.x),Math.round(c.y),c.big?1:0,c.super?1:0,c.isMimic?1:0]);
@@ -3241,7 +3279,7 @@ function makeSnap(){
           GS:G.goldSpirit?[Math.round(G.goldSpirit.x),Math.round(G.goldSpirit.y),Math.round(G.goldSpirit.t*10)]:null,
           U,TS,CH,GM,RS,HT,SO};
 }
-const SNAPKEY=[...HERO_KEYS,'','','','','','','slime','brute','boss','wolf','shaman','titan','saboteur','elite','grove','cannon','sprite','timemage','babydragon','thunderspirit','phantom','guardian','boulder','viper'];
+const SNAPKEY=[...HERO_KEYS,'','','','','slime','brute','boss','wolf','shaman','titan','saboteur','elite','grove','cannon','sprite','timemage','babydragon','thunderspirit','phantom','guardian','boulder','viper','bee'];
 function applySnap(s){
   if(!G||!G.coop) return;
   G.time=s.t/10; G.wave=s.w; G.lives=s.l; G.shared=s.sh; G.bossDown=!!s.bd; G.bossTier=s.bt||0;
