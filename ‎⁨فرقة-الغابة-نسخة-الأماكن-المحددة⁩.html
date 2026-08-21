@@ -427,10 +427,50 @@ const MAP=3200, MATCH=300, SQUAD_MAX=200, AGGRO=190, LEASH=185, LEAD_SPD=230, TU
 // ─────────────────────────── شكل الجزيرة ───────────────────────────
 const ISL={cx:0,cy:0,r:0,s1:0,s2:0,s3:0};
 function islandSeed(){
-  ISL.cx=MAP/2; ISL.cy=MAP/2; ISL.r=MAP*.355;
-  ISL.s1=rnd(0,TAU); ISL.s2=rnd(0,TAU); ISL.s3=rnd(0,TAU);
+  ISL.cx=MAP/2; ISL.cy=MAP/2; ISL.r=1160;
 }
-function islR(a){ return ISL.r*(1+.17*Math.sin(a*3+ISL.s1)+.10*Math.sin(a*5+ISL.s2)+.07*Math.sin(a*2+ISL.s3)); }
+function islR(a){ return ISL.r/Math.max(Math.abs(Math.cos(a)),Math.abs(Math.sin(a))); }
+
+// ─────────────────────────── شبكة المربعات الثابتة ───────────────────────────
+const CENTER_HW=400, OUTER_HW=310, ZGAP=110;
+const ZONES=[
+  {id:'center', cx:1600, cy:1600, hw:CENTER_HW},
+  {id:'n', cx:1600, cy:1600-CENTER_HW-ZGAP-OUTER_HW, hw:OUTER_HW},
+  {id:'s', cx:1600, cy:1600+CENTER_HW+ZGAP+OUTER_HW, hw:OUTER_HW},
+  {id:'e', cx:1600+CENTER_HW+ZGAP+OUTER_HW, cy:1600, hw:OUTER_HW},
+  {id:'w', cx:1600-CENTER_HW-ZGAP-OUTER_HW, cy:1600, hw:OUTER_HW},
+];
+const BRIDGE_HW=70; // نصف عرض الجسر
+const BRIDGES=[
+  {id:'n', x0:1600-BRIDGE_HW, y0:1600-CENTER_HW-ZGAP, x1:1600+BRIDGE_HW, y1:1600-CENTER_HW},
+  {id:'s', x0:1600-BRIDGE_HW, y0:1600+CENTER_HW, x1:1600+BRIDGE_HW, y1:1600+CENTER_HW+ZGAP},
+  {id:'e', x0:1600+CENTER_HW, y0:1600-BRIDGE_HW, x1:1600+CENTER_HW+ZGAP, y1:1600+BRIDGE_HW},
+  {id:'w', x0:1600-CENTER_HW-ZGAP, y0:1600-BRIDGE_HW, x1:1600-CENTER_HW, y1:1600+BRIDGE_HW},
+];
+function damageBridgesNear(x,y,r,dmg){
+  for(const b of BRIDGES){
+    const live=G.bridges.find(bb=>bb.id===b.id); if(!live||live.dead) continue;
+    const bx=(b.x0+b.x1)/2, by=(b.y0+b.y1)/2;
+    if((bx-x)**2+(by-y)**2<(r+60)*(r+60)){
+      live.hp=Math.max(0,live.hp-dmg);
+      if(live.hp<=0&&!live.dead){ live.dead=true; fxRing(bx,by,'#8d6e63'); fxSpr('boom',bx,by,40,90,.5); announce('🌉 انكسر الجسر!','ابحثوا عن طريق آخر أو اعبروا النهر مباشرة'); }
+    }
+  }
+}
+function zoneAt(x,y){
+  for(const z of ZONES){ if(Math.abs(x-z.cx)<=z.hw&&Math.abs(y-z.cy)<=z.hw) return z; }
+  return null;
+}
+function bridgeAt(x,y){
+  for(const b of BRIDGES){ if(x>=b.x0&&x<=b.x1&&y>=b.y0&&y<=b.y1) return b; }
+  return null;
+}
+function blockedByRiver(x,y){
+  if(zoneAt(x,y)) return false;
+  const b=bridgeAt(x,y);
+  if(b){ const live=(G.bridges||[]).find(bb=>bb.id===b.id); return live?live.dead:false; }
+  return inIsl(x,y,0);
+}
 function inIsl(x,y,m){ const dx=x-ISL.cx, dy=y-ISL.cy;
   return Math.hypot(dx,dy) <= islR(Math.atan2(dy,dx))-(m||0); }
 function pullIn(o,m){
@@ -443,7 +483,7 @@ function randIsl(m,minD,maxD){
     let d=Math.sqrt(RND())*R;
     if(minD!==undefined) d=clamp(rnd(minD,maxD||R),0,R);
     const x=ISL.cx+Math.cos(a)*d, y=ISL.cy+Math.sin(a)*d;
-    if(inIsl(x,y,m)) return [x,y];
+    if(inIsl(x,y,m)&&!blockedByRiver(x,y)) return [x,y];
   }
   return [ISL.cx,ISL.cy];
 }
@@ -482,7 +522,7 @@ function newGame(mode,seed,forcedMods){
   seed=seed||((Math.random()*1e9)>>>0);
   G={t:0,time:pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH),uid:1,teams:[],units:[],res:[],chests:[],gems:[],shots:[],fx:[],
      nextChest:1.5,over:false,frenzy:0,eclipse:0,goldSpirit:null,cannonBuilt:false,mark:null,chestTurn:0,evQ:[],seed,
-     coop,pvp,wave:0,waveT:4,boss:null,bossArena:null,bossSpawned:false,bossDown:false,bossTier:0,bossBreak:0,overtimeAnnounced:false,lateBoostAnnounced:false,lives:COOP_LIVES,won:false,shared:0,target:COOP_TARGET,hearts:[],speedOrbs:[],tankPickups:[],matchDuration:(pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH)),safeR:null,modifier2:null};
+     coop,pvp,wave:0,waveT:4,boss:null,bossArena:null,bossSpawned:false,bossDown:false,bossTier:0,bossBreak:0,overtimeAnnounced:false,lateBoostAnnounced:false,lives:COOP_LIVES,won:false,shared:0,target:COOP_TARGET,hearts:[],speedOrbs:[],tankPickups:[],bridges:BRIDGES.map(b=>({id:b.id,hp:300,max:300,dead:false})),matchDuration:(pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH)),safeR:null,modifier2:null};
   seedRNG(seed);
   const rolledMod=pick(MODIFIER_KEYS);
   if(forcedMods&&forcedMods.length){ G.modifier=forcedMods[0]; G.modifier2=forcedMods[1]||null; }
@@ -512,10 +552,22 @@ function newGame(mode,seed,forcedMods){
   });
   islandSeed();
   buildWorld();
-  const spots=coop?2:4;
+  // مواقع الولادة: الخصوم يتناولون بمربعين متقابلين (بعيدين عن بعض)، الحلفاء
+  // يتناولون قريبين من بعض وسط المربع الكبير، وفرق اللعب الفردي تتوزع على
+  // المربعات الطرفية الأربعة.
+  const spawnOrder=pvp?['w','e']:['n','e','s','w'];
   for(let i=1;i<G.teams.length;i++){
-    const T=G.teams[i], a=(i-1)/spots*TAU+.5, R=(islR(a)-90)*(coop?.45:.72);
-    T.x=ISL.cx+Math.cos(a)*R; T.y=ISL.cy+Math.sin(a)*R; T.gx=T.x; T.gy=T.y;
+    const T=G.teams[i];
+    if(pvp){
+      const z=ZONES.find(zz=>zz.id===spawnOrder[i-1]);
+      T.x=z.cx; T.y=z.cy;
+    }else if(coop){
+      T.x=ISL.cx+(i===1?-120:120); T.y=ISL.cy;
+    }else{
+      const z=ZONES.find(zz=>zz.id===spawnOrder[(i-1)%spawnOrder.length]);
+      T.x=z.cx; T.y=z.cy;
+    }
+    T.gx=T.x; T.gy=T.y;
     addUnit(T,'fighter',1,T.x,T.y); addUnit(T,'archer',1,T.x,T.y); addUnit(T,pick(['miner','healer','giant']),1,T.x,T.y); addUnit(T,pick(['knight','druid','samurai']),1,T.x,T.y);
   }
   unseedRNG();
@@ -1017,7 +1069,8 @@ function updateUnits(dt){
     const dd=Math.hypot(dx,dy);
     if(dd>3){ u.vx=(dx/dd)*sp; u.vy=(dy/dd)*sp; }
     else { u.vx*=.5; u.vy*=.5; }
-    u.x+=u.vx*dt; u.y+=u.vy*dt;
+    { const nx=u.x+u.vx*dt, ny=u.y+u.vy*dt;
+      if(u.T.wild||!blockedByRiver(nx,ny)){ u.x=nx; u.y=ny; } }
     pullIn(u,10);
   }
   // تباعد سريع باستخدام شبكة مكانية بدلاً من مقارنة كل وحدة مع كل الوحدات.
@@ -1061,6 +1114,7 @@ function updateShots(dt){
           if((e.x-s.tgt.x)**2+(e.y-s.tgt.y)**2<s.splash*s.splash) hurt(e,s.dmg*.6,s.src); }
         for(const r of G.res){ if(r.dead) continue;
           if((r.x-s.tgt.x)**2+(r.y-s.tgt.y)**2<s.splash*s.splash) hurt(r,s.dmg*.5,s.src); }
+        damageBridgesNear(s.tgt.x,s.tgt.y,s.splash,s.dmg*.4);
       }
       G.shots.splice(i,1); continue;
     }
@@ -1425,7 +1479,9 @@ function updateTeams(dt){
       for(const gp of G.speedGrass){ if((gp.x-T.x)**2+(gp.y-T.y)**2<gp.r*gp.r){ grassBoost=2.6; break; } }
     }
     const sp=LEAD_SPD*(T.dash>0?1.7:1)*(T.speedT>0?1.5:1)*grassBoost;
-    T.x+=mx*sp*dt; T.y+=my*sp*dt; pullIn(T,40);
+    { const ntx=T.x+mx*sp*dt, nty=T.y+my*sp*dt;
+      if(!blockedByRiver(ntx,nty)){ T.x=ntx; T.y=nty; } }
+    pullIn(T,40);
     T.move=Math.hypot(mx,my);
     // اندماج تلقائي
     T.mergeT=(T.mergeT||0)-dt;
@@ -1825,6 +1881,7 @@ function bossAoeHit(x,y,r,dmg){
     if(u.dead||u.T.wild) continue;
     if((u.x-x)**2+(u.y-y)**2<r*r){ hurt(u,dmg,G.boss); hitAny=true; }
   }
+  damageBridgesNear(x,y,r,dmg*.5);
   addShake(Math.min(9,3+dmg*.08), dmg>=40?.22:.14);
 }
 function bossPickTarget(){
@@ -2036,14 +2093,40 @@ function draw(){
   ctx.fillStyle=waterPat; ctx.fillRect(cam.x-80,cam.y-80,vw+160,vh+160);
   const grx=cam.x-80, gry=cam.y-80, grw=vw+160, grh=vh+160;
   ctx.save(); islandPath(ctx); ctx.clip();
-  ctx.fillStyle=groundPat; ctx.fillRect(grx,gry,grw,grh);
-  ctx.globalAlpha=.46; ctx.fillStyle='#4a3f52'; ctx.fillRect(grx,gry,grw,grh); ctx.globalAlpha=1;
-  ctx.save(); islandPathScaled(ctx,.72); ctx.clip();
-  ctx.fillStyle=groundPat; ctx.fillRect(grx,gry,grw,grh);
-  ctx.globalAlpha=.36; ctx.fillStyle='#c98a2e'; ctx.fillRect(grx,gry,grw,grh); ctx.globalAlpha=1;
-  ctx.save(); islandPathScaled(ctx,.4); ctx.clip();
-  ctx.fillStyle=groundPat; ctx.fillRect(grx,gry,grw,grh);
-  ctx.restore(); ctx.restore(); ctx.restore();
+  // النهر يملأ كل مساحة المربع الكبير أولًا، ثم تُرسم المربعات فوقه فتظهر كجزر
+  // منفصلة يفصل بينها الماء إلا عند الجسور.
+  ctx.fillStyle=waterPat; ctx.fillRect(grx,gry,grw,grh);
+  ctx.globalAlpha=.35; ctx.fillStyle='#1a5f7a'; ctx.fillRect(grx,gry,grw,grh); ctx.globalAlpha=1;
+  const ZONE_TINT={center:null,n:'#c98a2e',s:'#4a3f52',e:'#2e8a7a',w:'#a85a2e'};
+  for(const z of ZONES){
+    ctx.save(); ctx.beginPath(); ctx.rect(z.cx-z.hw,z.cy-z.hw,z.hw*2,z.hw*2); ctx.clip();
+    ctx.fillStyle=groundPat; ctx.fillRect(grx,gry,grw,grh);
+    const tint=ZONE_TINT[z.id];
+    if(tint){ ctx.globalAlpha=.34; ctx.fillStyle=tint; ctx.fillRect(grx,gry,grw,grh); ctx.globalAlpha=1; }
+    ctx.strokeStyle='rgba(234,216,152,.85)'; ctx.lineWidth=10;
+    ctx.strokeRect(z.cx-z.hw,z.cy-z.hw,z.hw*2,z.hw*2);
+    ctx.restore();
+  }
+  for(const b of BRIDGES){
+    const live=G.bridges.find(bb=>bb.id===b.id);
+    const bw=b.x1-b.x0, bh=b.y1-b.y0;
+    if(live&&!live.dead){
+      ctx.fillStyle='#8d6e4a'; ctx.fillRect(b.x0,b.y0,bw,bh);
+      ctx.strokeStyle='rgba(0,0,0,.25)'; ctx.lineWidth=3;
+      const planks=Math.round(Math.max(bw,bh)/18);
+      for(let i=1;i<planks;i++){
+        ctx.beginPath();
+        if(bw>bh){ ctx.moveTo(b.x0+i*(bw/planks),b.y0); ctx.lineTo(b.x0+i*(bw/planks),b.y1); }
+        else{ ctx.moveTo(b.x0,b.y0+i*(bh/planks)); ctx.lineTo(b.x1,b.y0+i*(bh/planks)); }
+        ctx.stroke();
+      }
+      if(live.hp<live.max){
+        ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(b.x0,b.y0-8,bw,4);
+        ctx.fillStyle='#66bb6a'; ctx.fillRect(b.x0,b.y0-8,bw*clamp(live.hp/live.max,0,1),4);
+      }
+    }
+  }
+  ctx.restore();
   islandPath(ctx);
   ctx.strokeStyle='rgba(234,216,152,.95)'; ctx.lineWidth=16; ctx.stroke();
   ctx.strokeStyle='rgba(255,255,255,.30)'; ctx.lineWidth=4; ctx.stroke();
