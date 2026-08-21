@@ -569,6 +569,29 @@ function buildWorld(){
     G.decor.push({x:dx0,y:dy0,spr:d[0],h:d[1]*rnd(.85,1.2),
       face:RND()<.5?-1:1, back:d[0]==='dirt'});
   }
+  // بقع عشب خاصة (لعدّاء الأعشاب) وأماكن ثابتة لظهور الدبابة - مواقع مولّدة من
+  // نفس البذرة المشتركة، فتكون متطابقة بين المضيف والضيف بلا حاجة لمزامنة شبكية.
+  G.speedGrass=[];
+  for(let i=0;i<6;i++){
+    let p=null;
+    for(let tries=0;tries<20;tries++){
+      const cand=randIsl(140,100);
+      if(G.speedGrass.every(q=>(q.x-cand[0])**2+(q.y-cand[1])**2>260*260)){ p=cand; break; }
+    }
+    p=p||randIsl(140);
+    G.speedGrass.push({x:p[0],y:p[1],r:55});
+  }
+  G.tankSpots=[];
+  for(let i=0;i<4;i++){
+    let p=null;
+    for(let tries=0;tries<20;tries++){
+      const cand=randIsl(180,140);
+      if(G.tankSpots.every(q=>(q.x-cand[0])**2+(q.y-cand[1])**2>300*300)&&
+         G.speedGrass.every(q=>(q.x-cand[0])**2+(q.y-cand[1])**2>150*150)){ p=cand; break; }
+    }
+    p=p||randIsl(180);
+    G.tankSpots.push({x:p[0],y:p[1]});
+  }
   const FIXED_CHESTS=[];
   for(let i=0;i<30;i++){
     let p=null;
@@ -1130,8 +1153,17 @@ function updateSpeedOrbs(dt){
   }
 }
 function spawnTankPickup(x,y){
-  const p={x,y,t:0,ph:rnd(0,TAU)};
-  pullIn(p,60);
+  const free=G.tankSpots.filter(s=>
+    !G.tankPickups.some(p=>(p.x-s.x)**2+(p.y-s.y)**2<10*10)&&
+    !G.units.some(u=>!u.dead&&u.type==='tank'&&(u.x-s.x)**2+(u.y-s.y)**2<80*80));
+  let spot;
+  if(free.length) spot=free[Math.floor(Math.random()*free.length)];
+  else{
+    let best=G.tankSpots[0], bd=1e18;
+    for(const s of G.tankSpots){ const d=(s.x-x)**2+(s.y-y)**2; if(d<bd){ bd=d; best=s; } }
+    spot=best;
+  }
+  const p={x:spot.x,y:spot.y,t:0,ph:rnd(0,TAU)};
   G.tankPickups.push(p);
 }
 function updateTankPickups(dt){
@@ -1390,7 +1422,7 @@ function updateTeams(dt){
     if(T.dash>0&&Math.random()<.4) fxSpr('dust',T.x+rnd(-14,14),T.y+rnd(-6,10),16,40,.4);
     let grassBoost=1;
     if(T.units.some(u=>!u.dead&&TYPES[u.type].special==='grassrun')){
-      for(const d of G.decor){ if(d.spr==='grass'&&(d.x-T.x)**2+(d.y-T.y)**2<40*40){ grassBoost=2.6; break; } }
+      for(const gp of G.speedGrass){ if((gp.x-T.x)**2+(gp.y-T.y)**2<gp.r*gp.r){ grassBoost=2.6; break; } }
     }
     const sp=LEAD_SPD*(T.dash>0?1.7:1)*(T.speedT>0?1.5:1)*grassBoost;
     T.x+=mx*sp*dt; T.y+=my*sp*dt; pullIn(T,40);
@@ -1545,12 +1577,16 @@ function updateLegendaryAbilities(dt){
       if(!u.bees) u.bees=[];
       while(u.bees.length<n) u.bees.push({a:rnd(0,TAU),cd:0});
       if(u.bees.length>n) u.bees.length=n;
+      const aliveUnits=u.T.units.filter(a=>!a.dead);
+      const rngR=Math.max(30,...aliveUnits.map(a=>(TYPES[a.type]&&TYPES[a.type].rng)||30));
+      const spreadR=Math.hypot(...slot(aliveUnits.length))+42;
+      const haloR=Math.max(rngR,spreadR);
       for(const b of u.bees){
-        b.a+=dt*2.2; b.cd=Math.max(0,(b.cd||0)-dt);
-        b.x=u.x+Math.cos(b.a)*34; b.y=u.y-10+Math.sin(b.a)*34*.6;
+        b.a+=dt*1.3; b.cd=Math.max(0,(b.cd||0)-dt);
+        b.x=u.T.x+Math.cos(b.a)*haloR; b.y=u.T.y+Math.sin(b.a)*haloR*.6-10;
         if(b.cd<=0){
           for(const e of G.units){ if(e.dead||areAllies(u.T,e.T)) continue;
-            if((e.x-b.x)**2+(e.y-b.y)**2<20*20){ hurt(e,7+u.lvl*3,u); b.cd=.5; break; } }
+            if((e.x-b.x)**2+(e.y-b.y)**2<24*24){ hurt(e,7+u.lvl*3,u); b.cd=.5; break; } }
         }
       }
     }else if(t.special==='boots'){
@@ -2014,6 +2050,16 @@ function draw(){
 
   const vis=(x,y,m)=> x>cam.x-m&&x<cam.x+vw+m&&y>cam.y-m&&y<cam.y+vh+m;
 
+  // بقع العشب الخاصة وأماكن الدبابة الثابتة
+  for(const gp of G.speedGrass){ if(!vis(gp.x,gp.y,gp.r+30)) continue;
+    const grd=ctx.createRadialGradient(gp.x,gp.y,gp.r*.2,gp.x,gp.y,gp.r);
+    grd.addColorStop(0,'rgba(139,195,74,.55)'); grd.addColorStop(1,'rgba(139,195,74,0)');
+    ctx.fillStyle=grd; ctx.beginPath(); ctx.arc(gp.x,gp.y,gp.r,0,TAU); ctx.fill(); }
+  for(const sp of G.tankSpots){ if(!vis(sp.x,sp.y,60)) continue;
+    ctx.save(); ctx.globalAlpha=.55;
+    ctx.strokeStyle='#607d8b'; ctx.lineWidth=4; ctx.setLineDash([8,6]);
+    ctx.beginPath(); ctx.arc(sp.x,sp.y,42,0,TAU); ctx.stroke();
+    ctx.setLineDash([]); ctx.restore(); }
   // زينة أرضية
   for(const d of G.decor){ if(!d.back||!vis(d.x,d.y,60)) continue;
     ctx.globalAlpha=.85; sprite(d.spr,d.x,d.y+d.h*.3,d.h,'c'); ctx.globalAlpha=1; }
