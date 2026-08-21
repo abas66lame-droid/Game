@@ -111,6 +111,20 @@
     font:700 13px "Baloo Bhaijaan 2",system-ui;text-shadow:0 2px 0 rgba(0,0,0,.5)}
   .coopHud .crow{margin:3px 0}
   .coopHud .crow.ok{color:#8bc34a}
+  .bossDuelBar{position:absolute;top:70px;right:10px;text-align:center;color:#fff;pointer-events:none;
+    font:700 13px "Baloo Bhaijaan 2",system-ui;text-shadow:0 2px 0 rgba(0,0,0,.5)}
+  .bossDuelBar .crow{margin:3px 0}
+  .bossDuelBar.hide{display:none}
+  .bossAbilities{position:absolute;left:10px;top:120px;display:grid;grid-template-columns:repeat(3,48px);gap:6px;pointer-events:auto}
+  .bossAbilities.hide{display:none}
+  .bossAbilities button{width:48px;height:48px;border-radius:50%;border:3px solid rgba(255,255,255,.4);
+    background:radial-gradient(circle at 35% 30%,#8e24aa,#4a148c);color:#fff;font-size:20px;font-weight:800;
+    display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer;touch-action:manipulation;
+    box-shadow:0 4px 0 rgba(0,0,0,.35)}
+  .bossAbilities button.cool{filter:grayscale(.8) brightness(.55)}
+  .bossAbilities button small{position:absolute;bottom:-4px;right:-4px;background:#000;border-radius:8px;
+    font-size:10px;padding:1px 4px;font-weight:800;line-height:1.3}
+  .bossbtn{background:linear-gradient(180deg,#ab47bc,#4a148c)!important}
   .bossbar{width:132px;height:9px;border-radius:5px;background:rgba(0,0,0,.55);
     border:2px solid rgba(255,255,255,.3);overflow:hidden;margin:4px 0}
   .bossbar i{display:block;height:100%;background:linear-gradient(90deg,#ff5252,#ff8a65)}
@@ -162,6 +176,18 @@
   <button id="xbowBtn" class="hide">🏹<small id="xbowCost"></small></button>
   <button id="info">؟</button>
   <div class="coopHud" id="coop"></div>
+  <div class="bossDuelBar hide" id="bossDuelHud"></div>
+  <div class="bossAbilities hide" id="bossAbilities">
+    <button data-ab="slam" title="ضربة أرضية">💥</button>
+    <button data-ab="charge" title="اندفاع">🏃</button>
+    <button data-ab="barrage" title="وابل صخور">☄️</button>
+    <button data-ab="web" title="شبكة">🕸️</button>
+    <button data-ab="shield" title="تدرّع">🛡️</button>
+    <button data-ab="teleport" title="اختفاء وظهور">👻</button>
+    <button data-ab="roar" title="زئير مرعب">😱</button>
+    <button data-ab="summon" title="استدعاء وحوش">🐺</button>
+    <button data-ab="heal" title="تجدد">💚</button>
+  </div>
   <div class="netPill" id="netPill"></div>
 </div>
 
@@ -190,6 +216,7 @@
     <button class="btn" id="play">🕹️ لعب فردي</button>
     <button class="btn coopbtn" id="playCoop">👥 لعب مع صديقي (PvE أونلاين)</button>
     <button class="btn duelbtn" id="playDuel">⚔️ مبارزة 1vs1 (PvP أونلاين)</button>
+    <button class="btn bossbtn" id="playBoss">👹 مواجهة الزعيم — تحكّم كامل (PvP أونلاين)</button>
     <button class="btn pvebtn" id="playPve">🛡️ PvE مع رفيق آلي (بدون نت)</button>
     <div class="netmsg" id="netMsg"></div>
     <div class="hint">لعبة مستوحاة من ألعاب جمع الفرق — شخصياتها وتصميمها أصلية.<br>على الكمبيوتر: أسهم/WASD للحركة، مسافة للاندفاع.</div>
@@ -398,6 +425,13 @@ const DUEL_TEAMS=[
   {n:'الخصم',    c:'#ff7043', coop:true},
 ];
 const DUEL_MATCH=150;
+const BOSS_TEAMS=[
+  {n:'البرية',   c:'#795548', wild:true},
+  {n:'الزعيم',   c:'#6a1b9a', player:true},
+  {n:'الضيف',    c:'#4dd0e1', coop:true},
+];
+const BOSS_MATCH=360;
+const BOSS_ABILITY_CD={slam:5,charge:7,barrage:9,web:8,shield:11,teleport:6,roar:14,summon:20,heal:25};
 const BUILDING_HP=6000;
 const MODIFIERS={
   wrath:{n:'غضب الغابة', e:'🌿', d:'المنطقة الآمنة تتقلص بسرعة ومبكرًا — استعدوا للمواجهة'},
@@ -529,12 +563,13 @@ let MYTEAM=1;      // رقم فريقي (٢ إذا كنت الضيف بالتع�
 function newGame(mode,seed,forcedMods){
   shakeMag=0; shakeT=0; lastShakeAt=-99;
   MODE=mode||'solo';
-  const pvp=MODE==='duel';
+  const pvp=MODE==='duel'||MODE==='boss';
   const coop=MODE==='coop'||pvp;
+  const bossMode=MODE==='boss';
   seed=seed||((Math.random()*1e9)>>>0);
-  G={t:0,time:pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH),uid:1,teams:[],units:[],res:[],chests:[],gems:[],shots:[],fx:[],
+  G={t:0,time:bossMode?BOSS_MATCH:(pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH)),uid:1,teams:[],units:[],res:[],chests:[],gems:[],shots:[],fx:[],
      nextChest:1.5,over:false,frenzy:0,eclipse:0,goldSpirit:null,cannonBuilt:false,xbowBuilt:false,mark:null,chestTurn:0,evQ:[],seed,
-     coop,pvp,wave:0,waveT:4,boss:null,bossArena:null,bossSpawned:false,bossDown:false,bossTier:0,bossBreak:0,overtimeAnnounced:false,lateBoostAnnounced:false,lives:COOP_LIVES,won:false,shared:0,target:COOP_TARGET,hearts:[],speedOrbs:[],tankPickups:[],bridges:BRIDGES.map(b=>({id:b.id,hp:300,max:300,dead:false})),matchDuration:(pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH)),safeR:null,modifier2:null};
+     coop,pvp,wave:0,waveT:4,boss:null,bossArena:null,bossSpawned:false,bossDown:false,bossTier:0,bossBreak:0,overtimeAnnounced:false,lateBoostAnnounced:false,lives:COOP_LIVES,won:false,shared:0,target:COOP_TARGET,hearts:[],speedOrbs:[],tankPickups:[],bridges:BRIDGES.map(b=>({id:b.id,hp:300,max:300,dead:false})),matchDuration:(bossMode?BOSS_MATCH:(pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH))),safeR:null,modifier2:null};
   seedRNG(seed);
   const rolledMod=pick(MODIFIER_KEYS);
   if(forcedMods&&forcedMods.length){ G.modifier=forcedMods[0]; G.modifier2=forcedMods[1]||null; }
@@ -549,7 +584,7 @@ function newGame(mode,seed,forcedMods){
   {
     const keys=['rain','wave','mega','frenzy','eclipse','elite','goldenspirit'];
     for(let i=keys.length-1;i>0;i--){ const j=Math.floor(RND()*(i+1)); [keys[i],keys[j]]=[keys[j],keys[i]]; }
-    const base=pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH);
+    const base=bossMode?BOSS_MATCH:(pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH));
     const startPad=28, endPad=22;
     const span=Math.max(20,base-startPad-endPad);
     const seg=span/keys.length;
@@ -558,7 +593,7 @@ function newGame(mode,seed,forcedMods){
       return {at:base-elapsed,k};
     });
   }
-  (pvp?DUEL_TEAMS:(coop?COOP_TEAMS:TEAMS)).forEach((d,i)=>{
+  (bossMode?BOSS_TEAMS:(pvp?DUEL_TEAMS:(coop?COOP_TEAMS:TEAMS))).forEach((d,i)=>{
     G.teams.push({i,n:d.n,c:d.c,wild:!!d.wild,player:!!d.player,coop:!!d.coop,gems:0,units:[],
       x:0,y:0,gx:0,gy:0,dead:false,resp:0,dash:0,dashCd:0,think:0,move:0});
   });
@@ -580,7 +615,20 @@ function newGame(mode,seed,forcedMods){
       T.x=z.cx; T.y=z.cy;
     }
     T.gx=T.x; T.gy=T.y;
-    addUnit(T,'fighter',1,T.x,T.y); addUnit(T,'archer',1,T.x,T.y); addUnit(T,pick(['miner','healer','giant']),1,T.x,T.y); addUnit(T,pick(['knight','druid','samurai']),1,T.x,T.y);
+    if(bossMode&&i===1){
+      // المستضيف لا يملك فرقة عادية - يتحكم مباشرة بزعيم واحد ضخم عبر عصا التحكم وأزرار القدرات
+      const mb=addUnit(T,'boss',1,T.x,T.y);
+      if(mb){
+        mb.size=72; mb.hp=mb.max=42000; mb.dmg=46;
+        mb.bossKey='overlord'; mb.tier=1; mb.phase=1;
+        mb.mode='idle'; mb.moveCd=999999; mb.moveType='';
+        mb.enraging=false; mb.enrageT=0; mb.shieldT=0; mb.shielded=false;
+        mb.homeX=T.x; mb.homeY=T.y; mb.humanControlled=true; mb.abilityCds={};
+        G.boss=mb;
+      }
+    }else{
+      addUnit(T,'fighter',1,T.x,T.y); addUnit(T,'archer',1,T.x,T.y); addUnit(T,pick(['miner','healer','giant']),1,T.x,T.y); addUnit(T,pick(['knight','druid','samurai']),1,T.x,T.y);
+    }
   }
   unseedRNG();
   if(coop){ G.teams[MYTEAM].player=true; for(let i=1;i<G.teams.length;i++) if(i!==MYTEAM) G.teams[i].player=false; }
@@ -940,6 +988,20 @@ function doBuildXbow(){
   tryBuildXbow(ME());
 }
 
+// أزرار قدرات الزعيم (تظهر فقط لمن يتحكم بالزعيم - المستضيف في وضع "مواجهة
+// الزعيم"). المستضيف هو من يشغّل step() فعليًا، فالنقر يستدعي القدرة محليًا
+// مباشرة بلا حاجة لأي رسالة شبكية.
+const bossAbilitiesEl=document.getElementById('bossAbilities');
+bossAbilitiesEl.querySelectorAll('button[data-ab]').forEach(btn=>{
+  const ab=btn.dataset.ab;
+  const fire=(e)=>{ e.preventDefault(); e.stopPropagation();
+    if(!running||MODE!=='boss'||MYTEAM!==1) return;
+    const fn=BOSS_ABILITY_FN[ab]; if(fn) fn();
+  };
+  btn.addEventListener('touchstart',fire,{passive:false});
+  btn.addEventListener('click',fire);
+});
+
 // ─────────────────────────── منطق اللعبة ───────────────────────────
 function power(T){ let p=0; for(const u of T.units) if(!u.dead) p+=u.hp*.35+u.dmg*3; return p; }
 
@@ -982,7 +1044,9 @@ function findTarget(u){
     const d=(G.building.x-u.x)**2+(G.building.y-u.y)**2;
     if(d<bd) return G.building;
   }
-  if(!u.T.wild){
+  if(!u.T.wild&&!u.humanControlled){
+    // الزعيم البشري التحكم لا يجمع موارد - يبقى مركّزًا على الأعداء الحقيقيين
+    // بدل أن يشتّت نفسه بمطاردة شجرة قريبة ويهمل تتبّع عصا التحكم
     for(const r of G.res){
       if(r.dead) continue;
       const d=(r.x-u.x)**2+(r.y-u.y)**2;
@@ -1094,7 +1158,11 @@ function updateUnits(dt){
       }
     }
     // حركة
-    const sp=LEAD_SPD*t.spd*(1.18+Math.min(aura,.25))*(u.T.dash>0?1.75:1)*(u.T.wild&&(G.eclipse>0||hasMod('night'))?1.3:1)*(u.slowT>0?.5:1);
+    // زعيم "مواجهة الزعيم" (تحكم بشري) يحتاج يلتصق بموقع فرقته (الذي تقوده عصا
+    // التحكم مباشرة) وإلا تتقدم الكاميرا عليه؛ سرعة الزعيم الأصلية (.50) مصممة
+    // لملاحقة ذكاء اصطناعي بطيء، فنتجاوزها لهذه الوحدة فقط دون التأثير على بقية الزعماء.
+    const unitSpd=u.humanControlled?1.35:t.spd;
+    const sp=LEAD_SPD*unitSpd*(1.18+Math.min(aura,.25))*(u.T.dash>0?1.75:1)*(u.T.wild&&(G.eclipse>0||hasMod('night'))?1.3:1)*(u.slowT>0?.5:1);
     dx=desired[0]-u.x; dy=desired[1]-u.y;
     const dd=Math.hypot(dx,dy);
     if(dd>3){ u.vx=(dx/dd)*sp; u.vy=(dy/dd)*sp; }
@@ -1798,7 +1866,7 @@ function respawnResources(dt){
 }
 
 function respawnWild(dt){
-  if(G.coop) return; // في التعاوني الموجات هي مصدر الوحوش
+  if(G.coop&&MODE!=='boss') return; // في التعاوني الموجات هي مصدر الوحوش (وضع الزعيم يحتاج وحوشًا برية عادية للضيف)
   if(G.matchDuration-G.time<60) return; // الدقيقة الأولى هادئة تقريبًا بلا وحوش
   const invasion=hasMod('invasion');
   const wild=G.teams[0];
@@ -1972,11 +2040,11 @@ function bossPickTarget(){
     if(d<bd){ bd=d; best=T; } }
   return best||{x:G.boss.x,y:G.boss.y};
 }
-function startBossMove(){
+function startBossMove(forceType){
   const b=G.boss; const target=bossPickTarget();
   const roster=BOSSES[(b.tier||1)-1];
   const pool=roster.movesByPhase[Math.min(b.phase,3)-1];
-  b.moveType=pick(pool);
+  b.moveType=forceType||pick(pool);
   b.mode='telegraph'; b.moveT=.8; b.teleT0=.8;
   if(b.moveType==='slam'){
     b.teleX=target.x; b.teleY=target.y; b.teleR=110;
@@ -2071,6 +2139,62 @@ function updateBossAI(dt){
   }
 }
 
+// ─────────────────────────── قدرات وضع "مواجهة الزعيم" (يتحكم فيها المستضيف يدويًا) ───────────────────────────
+function updateBossAbilityCooldowns(dt){
+  const b=G.boss; if(!b||!b.abilityCds) return;
+  for(const k in b.abilityCds) b.abilityCds[k]=Math.max(0,b.abilityCds[k]-dt);
+}
+function triggerBossMove(type){
+  const b=G.boss; if(!b||b.dead||b.mode!=='idle') return false;
+  b.abilityCds=b.abilityCds||{};
+  if((b.abilityCds[type]||0)>0) return false;
+  startBossMove(type);
+  b.abilityCds[type]=BOSS_ABILITY_CD[type]||6;
+  return true;
+}
+function triggerBossRoar(){
+  const b=G.boss; if(!b||b.dead) return false;
+  b.abilityCds=b.abilityCds||{};
+  if((b.abilityCds.roar||0)>0) return false;
+  for(const u of G.units){ if(u.dead||u.T.wild||u.T===b.T) continue; u.slowT=Math.max(u.slowT||0,2.2); }
+  fxRing(b.x,b.y,'#4a148c'); fxSpr('boom',b.x,b.y,60,170,.6); addShake(10,.3);
+  announce('😱 زئير مرعب!','كل أعدائك تباطؤوا لحظات');
+  beep(90,.4,'sawtooth',.1);
+  b.abilityCds.roar=BOSS_ABILITY_CD.roar;
+  return true;
+}
+function triggerBossSummon(){
+  const b=G.boss; if(!b||b.dead) return false;
+  b.abilityCds=b.abilityCds||{};
+  if((b.abilityCds.summon||0)>0) return false;
+  for(let i=0;i<3;i++){
+    const a=rnd(0,TAU), r=rnd(60,140);
+    const x=b.x+Math.cos(a)*r, y=b.y+Math.sin(a)*r;
+    addUnit(G.teams[0],pick(['wolf','shaman','brute']),1,x,y);
+  }
+  fxSpr('portal',b.x,b.y,30,100,.7);
+  announce('🐺 استدعاء!','الزعيم استدعى وحوشًا لمساعدته');
+  beep(160,.3,'square',.08);
+  b.abilityCds.summon=BOSS_ABILITY_CD.summon;
+  return true;
+}
+function triggerBossHeal(){
+  const b=G.boss; if(!b||b.dead) return false;
+  b.abilityCds=b.abilityCds||{};
+  if((b.abilityCds.heal||0)>0) return false;
+  b.hp=Math.min(b.max,b.hp+b.max*.12);
+  fxSpr('heal',b.x,b.y,40,110,.6); fxRing(b.x,b.y,'#4dd0e1');
+  announce('💚 تجدد!','الزعيم استعاد جزءًا من صحته');
+  beep(500,.2,'sine',.06);
+  b.abilityCds.heal=BOSS_ABILITY_CD.heal;
+  return true;
+}
+const BOSS_ABILITY_FN={
+  slam:()=>triggerBossMove('slam'), charge:()=>triggerBossMove('charge'), barrage:()=>triggerBossMove('barrage'),
+  web:()=>triggerBossMove('web'), shield:()=>triggerBossMove('shield'), teleport:()=>triggerBossMove('teleport'),
+  roar:triggerBossRoar, summon:triggerBossSummon, heal:triggerBossHeal,
+};
+
 function updateCoop(dt){
   if(G.pvp) return;
   G.shared=G.teams.reduce((s,T)=>s+(T.coop?T.gems:0),0);
@@ -2105,6 +2229,7 @@ function step(dt){
   }
   updateEvents(dt);
   if(G.coop) updateCoop(dt);
+  if(MODE==='boss'&&G.boss&&!G.boss.dead){ updateBossAI(dt); updateBossAbilityCooldowns(dt); }
   readInput();
   updateTeams(dt);
   updateSafeZone(dt);
@@ -2123,6 +2248,7 @@ function step(dt){
   updateFx(dt);
   respawnResources(dt);
   respawnWild(dt);
+  if(MODE==='boss'&&G.boss&&G.boss.dead&&!G.over){ G.won=true; endMatch(); }
   if(G.time<=0){
     const inGauntlet=G.coop&&!G.pvp&&G.bossSpawned&&!G.bossDown;
     if(inGauntlet&&!G.overtimeAnnounced){ G.overtimeAnnounced=true; announce('⏱️ وقت إضافي!','أكملوا الزعماء المتبقين — لا حد زمني الآن'); }
@@ -3419,6 +3545,7 @@ function updateHud(dt){
   dashBtn.lastChild.nodeValue=T.dashCd>0?Math.ceil(T.dashCd)+'ث':'اندفاع';
   updateSquadBar(); updateBoard();
   if(G.coop&&!G.pvp) updateCoopHud();
+  if(MODE==='boss'){ updateBossAbilitiesUI(); updateBossDuelHud(); }
 }
 
 function updateCoopHud(){
@@ -3447,6 +3574,29 @@ function updateCoopHud(){
     xbowBtn.classList.toggle('afford',T.gems>=XBOW_COST);
     document.getElementById('xbowCost').textContent=XBOW_COST+' 💎';
   }
+}
+
+function updateBossDuelHud(){
+  const el=document.getElementById('bossDuelHud'); if(!el) return;
+  const show=!!(G&&G.boss);
+  el.classList.toggle('hide',!show);
+  if(!show) return;
+  const b=G.boss;
+  el.innerHTML='<div class="bossbar"><i style="width:'+Math.max(0,Math.round(b.hp/b.max*100))+'%"></i></div><div class="crow">👹 صحة الزعيم</div>';
+}
+function updateBossAbilitiesUI(){
+  if(!bossAbilitiesEl) return;
+  const show=(MYTEAM===1&&G&&G.boss&&!G.boss.dead);
+  bossAbilitiesEl.classList.toggle('hide',!show);
+  if(!show) return;
+  const cds=G.boss.abilityCds||{};
+  bossAbilitiesEl.querySelectorAll('button[data-ab]').forEach(btn=>{
+    const ab=btn.dataset.ab, cd=cds[ab]||0;
+    btn.classList.toggle('cool',cd>0);
+    let small=btn.querySelector('small');
+    if(cd>0){ if(!small){ small=document.createElement('small'); btn.appendChild(small); } small.textContent=Math.ceil(cd); }
+    else if(small) small.remove();
+  });
 }
 
 function updateSquadBar(force){
@@ -3486,6 +3636,20 @@ function updateBoard(force){
 
 function endMatch(){
   if(G.over) return; G.over=true; running=false;
+  if(MODE==='boss'){
+    if(NET.on&&NET.role==='host') netSend('end',{won:!!G.won});
+    const iAmBoss=(MYTEAM===1), guestWon=!!G.won;
+    const win=iAmBoss?!guestWon:guestWon;
+    elTitle.innerHTML=(win?'انتصرت! 🏆':'خسرت 💀')+
+      '<em style="font-style:normal;display:block;font-size:15px;opacity:.8;margin-top:6px">'+
+      (guestWon?'أسقط الضيف الزعيم!':'نفد الوقت والزعيم لا يزال حيًا')+'</em>';
+    elRank.innerHTML='<div class="'+(guestWon?'':'me')+'"><span>👹 صحة الزعيم المتبقية</span><span>'+Math.max(0,Math.round(G.boss?G.boss.hp:0))+' / '+(G.boss?G.boss.max:0)+'</span></div>';
+    if(win){ const me=ME(); fxConfettiBurst(me.x,me.y-30,26); fxBeam(me.x,me.y,'#ffe082',1.3); }
+    elTitle.classList.toggle('winPop',win);
+    elEnd.classList.remove('hide');
+    beep(win?660:180,.2,'triangle',.06);
+    return;
+  }
   if(G.coop&&!G.pvp){
     if(NET.on&&NET.role==='host') netSend('end',{won:!!G.won});
     const win=!!G.won;
@@ -4088,6 +4252,15 @@ document.getElementById('playDuel').addEventListener('click',async ()=>{
   }
   const choice=await showRoomDialog();
   await startOnlineRoom(choice,'duel');
+});
+
+document.getElementById('playBoss').addEventListener('click',async ()=>{
+  if(NET.on){
+    netMsg.textContent='أنت متصل بالغرفة الحالية.';
+    return;
+  }
+  const choice=await showRoomDialog();
+  await startOnlineRoom(choice,'boss');
 });
 
 // ─────────── لوحة خصائص الأبطال ───────────
