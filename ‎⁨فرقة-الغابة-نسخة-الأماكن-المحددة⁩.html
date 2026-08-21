@@ -614,7 +614,7 @@ function buildWorld(){
     const a=rnd(0,TAU), frac=.08+Math.pow(RND(),.85)*.9;
     const R=islR(a)*frac*.92;
     const x=ISL.cx+Math.cos(a)*R, y=ISL.cy+Math.sin(a)*R;
-    if(!farFromTeams(x,y,300)) continue;
+    if(!farFromTeams(x,y,300)||blockedByRiver(x,y)) continue;
     const type=wildTypeForBand(frac);
     const u=addUnit(wild,type,1,x,y);
     if(u){
@@ -687,7 +687,11 @@ function spawnChest(big=false,fx=null,fy=null,superC=false){
 // ─────────────────────────── الوحدات ───────────────────────────
 function addUnit(T,type,lvl,x,y){
   const t=TYPES[type], m=Math.pow(2.25,lvl-1);
-  const u={id:G.uid++,T,type,lvl,x:x+rnd(-16,16),y:y+rnd(-16,16),vx:0,vy:0,
+  let jx=x+rnd(-16,16), jy=y+rnd(-16,16);
+  // إن كان الموقع المطلوب فعليًا خارج النهر لكن الاهتزاز العشوائي البسيط دفعه
+  // بالخطأ لداخل النهر (على حافة مربع)، تجاهل الاهتزاز وابق بالموقع الأصلي.
+  if(typeof blockedByRiver==='function'&&blockedByRiver(jx,jy)&&!blockedByRiver(x,y)){ jx=x; jy=y; }
+  const u={id:G.uid++,T,type,lvl,x:jx,y:jy,vx:0,vy:0,
     hp:t.hp*m,max:t.hp*m,dmg:t.dmg*Math.pow(1.95,lvl-1),size:13*Math.pow(1.45,lvl-1),
     cd:rnd(0,.4),tgt:null,re:0,ph:rnd(0,TAU),hitT:0,pop:.32,dead:false,ax:x,ay:y};
   G.units.push(u); T.units.push(u); return u;
@@ -952,7 +956,11 @@ function findTarget(u){
     return (G.building&&!G.building.dead)? G.building : null;
   }
   if(u.type==='cannon'||u.type==='xbow'){
-    let bestThreat=null, btd=1e12;
+    // فقط تهديد يمكن ضربه فعليًا (بحدود مداه + هامش صغير) - وإلا يبقى المدفع
+    // "مقفلًا" على مخرّب بعيد جدًا لا يقدر يصله (لأنه ثابت لا يتحرك)، متجاهلًا
+    // وحوشًا أخرى قريبة كان بمقدوره ضربها فعلًا.
+    const xt=TYPES[u.type];
+    let bestThreat=null, btd=(xt.rng+60)*(xt.rng+60);
     for(const e of G.units){
       if(e.dead||!e.T.wild||!(TYPES[e.type]&&TYPES[e.type].buildingOnly)) continue;
       const d=(e.x-u.x)**2+(e.y-u.y)**2;
@@ -1091,12 +1099,13 @@ function updateUnits(dt){
     const dd=Math.hypot(dx,dy);
     if(dd>3){ u.vx=(dx/dd)*sp; u.vy=(dy/dd)*sp; }
     else { u.vx*=.5; u.vy*=.5; }
-    { const nx=u.x+u.vx*dt, ny=u.y+u.vy*dt;
-      if(u.T.wild||!blockedByRiver(nx,ny)){ u.x=nx; u.y=ny; }
-      else{ // انزلاق على حافة النهر بدل التجمّد الكامل
-        if(!blockedByRiver(nx,u.y)) u.x=nx;
-        else if(!blockedByRiver(u.x,ny)) u.y=ny;
-      } }
+    // حركة الوحدة الفردية غير محظورة بالنهر (فقط موقع الفرقة نفسه محظور بالأسفل
+    // في updateTeams) - لأن تقييد كل وحدة على حدة كان يجمّد أفراد التشكيلة الذين
+    // يقع موضعهم المحسوب (بعيدًا عن مركز الفرقة) خارج عرض الجسر قليلًا، فتنقسم
+    // الفرقة بمرور الوقت وتبدو "عالقة بالنهر". بما أن موقع الفرقة نفسه لا يعبر
+    // إلا عبر الجسور، والوحدات تُشد نحوه دائمًا (تشكيل أو ملاحقة قصيرة المدى)،
+    // فلا يوجد خطر حقيقي من عبور فردي جماعي للنهر.
+    u.x+=u.vx*dt; u.y+=u.vy*dt;
     pullIn(u,10);
   }
   // تباعد سريع باستخدام شبكة مكانية بدلاً من مقارنة كل وحدة مع كل الوحدات.
@@ -1180,8 +1189,7 @@ function updateSaboteurs(dt){
   const alive=wild.units.filter(u=>!u.dead&&u.type==='saboteur').length;
   if(G.saboteurT<=0 && alive<3){
     G.saboteurT=rnd(20,30);
-    const a=rnd(0,TAU), R=islR(a)-rnd(60,160);
-    const x=ISL.cx+Math.cos(a)*R, y=ISL.cy+Math.sin(a)*R;
+    const [x,y]=randIsl(160,CENTER_HW+100); // بعيدًا عن المبنى قرب حافة الخريطة، دائمًا بمربع فعلي بفضل رفض randIsl لنقاط النهر
     const u=addUnit(wild,'saboteur',1,x,y);
     if(u){ u.ax=G.building.x; u.ay=G.building.y; u.size=32; fxSpr('portal',x,y,12,40,.5); }
   }
@@ -1902,7 +1910,7 @@ function spawnWave(){
     const a=rnd(0,TAU), frac=Math.pow(RND(),.85);
     const R=islR(a)*frac*.92;
     const x=ISL.cx+Math.cos(a)*R, y=ISL.cy+Math.sin(a)*R;
-    if(!farFromTeams(x,y,220)) continue;
+    if(!farFromTeams(x,y,220)||blockedByRiver(x,y)) continue;
     const type=wildTypeForBand(frac);
     const u=addUnit(wild,type,1,x,y);
     if(u){
@@ -1928,8 +1936,12 @@ function spawnBoss(tier){
     for(const u of T.units) if(!u.dead) u.hp=Math.min(u.max,u.hp+u.max*.45);
     fxSpr('heal',T.x,T.y,26,60,.6);
   }
-  const a=rnd(0,TAU), R=(islR(a))*.25;
-  const x=ISL.cx+Math.cos(a)*R, y=ISL.cy+Math.sin(a)*R;
+  let x=ISL.cx, y=ISL.cy;
+  for(let tries=0;tries<20;tries++){
+    const a=rnd(0,TAU), R=(islR(a))*.25;
+    const cx=ISL.cx+Math.cos(a)*R, cy=ISL.cy+Math.sin(a)*R;
+    if(!blockedByRiver(cx,cy)){ x=cx; y=cy; break; }
+  }
   const b=addUnit(G.teams[0],'boss',1,x,y);
   if(b){
     b.size=roster.size; b.lvl=tier; b.tier=tier; b.hp=b.max=roster.hp; b.dmg=roster.dmg;
