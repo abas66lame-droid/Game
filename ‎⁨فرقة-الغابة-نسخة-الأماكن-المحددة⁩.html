@@ -61,6 +61,14 @@
   #cannonBtn.hide{display:none}
   #cannonBtn.afford{background:radial-gradient(circle at 35% 30%,#ffe082,#f9a825);color:#4e2c00}
   body:not(.coop) #cannonBtn, body.coop.pvp #cannonBtn{display:none}
+  #xbowBtn{position:absolute;bottom:calc(78px + 84px + env(safe-area-inset-bottom));left:22px;width:74px;height:74px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#a1887f,#6d4c30);border:4px solid rgba(255,255,255,.4);
+    color:#fff;font-size:20px;font-weight:800;display:flex;align-items:center;justify-content:center;
+    pointer-events:auto;box-shadow:0 6px 0 rgba(0,0,0,.35);flex-direction:column;line-height:1}
+  #xbowBtn small{font-size:11px;margin-top:2px}
+  #xbowBtn.hide{display:none}
+  #xbowBtn.afford{background:radial-gradient(circle at 35% 30%,#ffe082,#f9a825);color:#4e2c00}
+  body:not(.coop) #xbowBtn, body.coop.pvp #xbowBtn{display:none}
   .screen{position:fixed;inset:0;display:flex;align-items:safe center;justify-content:safe center;padding:22px;
     overflow-y:auto;background:radial-gradient(circle at 50% 25%,#2f6b33,#122a15 70%);z-index:5}
   .screen.hide{display:none}
@@ -151,6 +159,7 @@
   <div class="heroTip" id="heroTip"></div>
   <button id="dash"><i id="dashIcon"></i>اندفاع</button>
   <button id="cannonBtn" class="hide">🔫<small id="cannonCost"></small></button>
+  <button id="xbowBtn" class="hide">🏹<small id="xbowCost"></small></button>
   <button id="info">؟</button>
   <div class="coopHud" id="coop"></div>
   <div class="netPill" id="netPill"></div>
@@ -361,6 +370,7 @@ const TYPES={
   elite   :{n:'المقاتل الشرس', e:'🐗', c:'#8d4e2a', hp:900, dmg:30, rng:42, spd:.65, rate:1.05, wild:1},
   grove   :{n:'عملاق الغابة', e:'🌳', c:'#4e7942', hp:2200, dmg:26, rng:48, spd:.40, rate:1.3, wild:1},
   cannon  :{n:'المدفع', e:'🔫', c:'#607d8b', hp:900, dmg:70, rng:210, spd:0, rate:.65, shot:1, splash:65, pj:'bomb'},
+  xbow    :{n:'اكس بو', e:'🏹', c:'#8d6e4a', hp:900, dmg:130, rng:340, spd:0, rate:1.1, shot:1, pj:'arrow'},
   sprite  :{n:'روح الغابة', e:'✨', c:'#4dd8b0', hp:280, dmg:30, rng:140, spd:1.05, rate:.85, shot:1, splash:55, pj:'orb', heal:10},
   timemage:{n:'ساحر الزمن', e:'⏳', c:'#7c4dff', hp:220, dmg:20, rng:150, spd:1.0, rate:1.4, shot:1, pj:'orb', legendary:1, special:'slow', desc:'كل بضع ثوانٍ يطلق موجة تُبطئ كل الأعداء القريبين منه.'},
   babydragon:{n:'التنين الصغير', e:'🐲', c:'#ff7043', hp:260, dmg:22, rng:120, spd:1.05, rate:.9, shot:1, pj:'bomb', splash:35, legendary:1, special:'burn', desc:'قذائفه تُشعل الأعداء بحرق مستمر يلتهم صحتهم بمرور الوقت.'},
@@ -375,6 +385,7 @@ function heroPool(){
   return HERO_KEYS;
 }
 const CANNON_COST=220;
+const XBOW_COST=260;
 const COOP_TEAMS=[
   {n:'البرية',   c:'#795548', wild:true},
   {n:'أنت',      c:'#ffffff', player:true, coop:true},
@@ -422,30 +433,31 @@ const TEAMS=[
 ];
 
 // ─────────────────────────── إعدادات ───────────────────────────
-const MAP=3200, MATCH=300, SQUAD_MAX=200, AGGRO=190, LEASH=185, LEAD_SPD=230, TURBO=25;
+const MAP=6400, MATCH=300, SQUAD_MAX=200, AGGRO=190, LEASH=185, LEAD_SPD=230, TURBO=25;
 
 // ─────────────────────────── شكل الجزيرة ───────────────────────────
 const ISL={cx:0,cy:0,r:0,s1:0,s2:0,s3:0};
 function islandSeed(){
-  ISL.cx=MAP/2; ISL.cy=MAP/2; ISL.r=1160;
+  ISL.cx=MAP/2; ISL.cy=MAP/2; ISL.r=2320;
 }
 function islR(a){ return ISL.r/Math.max(Math.abs(Math.cos(a)),Math.abs(Math.sin(a))); }
 
-// ─────────────────────────── شبكة المربعات الثابتة ───────────────────────────
-const CENTER_HW=400, OUTER_HW=310, ZGAP=110;
+// ─────────────────────────── شبكة المربعات الثابتة (كل مربع بضعف حجمه السابق) ───────────────────────────
+const MAPC=MAP/2;
+const CENTER_HW=800, OUTER_HW=620, ZGAP=220;
 const ZONES=[
-  {id:'center', cx:1600, cy:1600, hw:CENTER_HW},
-  {id:'n', cx:1600, cy:1600-CENTER_HW-ZGAP-OUTER_HW, hw:OUTER_HW},
-  {id:'s', cx:1600, cy:1600+CENTER_HW+ZGAP+OUTER_HW, hw:OUTER_HW},
-  {id:'e', cx:1600+CENTER_HW+ZGAP+OUTER_HW, cy:1600, hw:OUTER_HW},
-  {id:'w', cx:1600-CENTER_HW-ZGAP-OUTER_HW, cy:1600, hw:OUTER_HW},
+  {id:'center', cx:MAPC, cy:MAPC, hw:CENTER_HW},
+  {id:'n', cx:MAPC, cy:MAPC-CENTER_HW-ZGAP-OUTER_HW, hw:OUTER_HW},
+  {id:'s', cx:MAPC, cy:MAPC+CENTER_HW+ZGAP+OUTER_HW, hw:OUTER_HW},
+  {id:'e', cx:MAPC+CENTER_HW+ZGAP+OUTER_HW, cy:MAPC, hw:OUTER_HW},
+  {id:'w', cx:MAPC-CENTER_HW-ZGAP-OUTER_HW, cy:MAPC, hw:OUTER_HW},
 ];
-const BRIDGE_HW=70; // نصف عرض الجسر
+const BRIDGE_HW=220; // نصف عرض الجسر — أوسع من الضعف العادي لمنع انقسام الفرقة أثناء العبور
 const BRIDGES=[
-  {id:'n', x0:1600-BRIDGE_HW, y0:1600-CENTER_HW-ZGAP, x1:1600+BRIDGE_HW, y1:1600-CENTER_HW},
-  {id:'s', x0:1600-BRIDGE_HW, y0:1600+CENTER_HW, x1:1600+BRIDGE_HW, y1:1600+CENTER_HW+ZGAP},
-  {id:'e', x0:1600+CENTER_HW, y0:1600-BRIDGE_HW, x1:1600+CENTER_HW+ZGAP, y1:1600+BRIDGE_HW},
-  {id:'w', x0:1600-CENTER_HW-ZGAP, y0:1600-BRIDGE_HW, x1:1600-CENTER_HW, y1:1600+BRIDGE_HW},
+  {id:'n', x0:MAPC-BRIDGE_HW, y0:MAPC-CENTER_HW-ZGAP, x1:MAPC+BRIDGE_HW, y1:MAPC-CENTER_HW},
+  {id:'s', x0:MAPC-BRIDGE_HW, y0:MAPC+CENTER_HW, x1:MAPC+BRIDGE_HW, y1:MAPC+CENTER_HW+ZGAP},
+  {id:'e', x0:MAPC+CENTER_HW, y0:MAPC-BRIDGE_HW, x1:MAPC+CENTER_HW+ZGAP, y1:MAPC+BRIDGE_HW},
+  {id:'w', x0:MAPC-CENTER_HW-ZGAP, y0:MAPC-BRIDGE_HW, x1:MAPC-CENTER_HW, y1:MAPC+BRIDGE_HW},
 ];
 function damageBridgesNear(x,y,r,dmg){
   for(const b of BRIDGES){
@@ -521,7 +533,7 @@ function newGame(mode,seed,forcedMods){
   const coop=MODE==='coop'||pvp;
   seed=seed||((Math.random()*1e9)>>>0);
   G={t:0,time:pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH),uid:1,teams:[],units:[],res:[],chests:[],gems:[],shots:[],fx:[],
-     nextChest:1.5,over:false,frenzy:0,eclipse:0,goldSpirit:null,cannonBuilt:false,mark:null,chestTurn:0,evQ:[],seed,
+     nextChest:1.5,over:false,frenzy:0,eclipse:0,goldSpirit:null,cannonBuilt:false,xbowBuilt:false,mark:null,chestTurn:0,evQ:[],seed,
      coop,pvp,wave:0,waveT:4,boss:null,bossArena:null,bossSpawned:false,bossDown:false,bossTier:0,bossBreak:0,overtimeAnnounced:false,lateBoostAnnounced:false,lives:COOP_LIVES,won:false,shared:0,target:COOP_TARGET,hearts:[],speedOrbs:[],tankPickups:[],bridges:BRIDGES.map(b=>({id:b.id,hp:300,max:300,dead:false})),matchDuration:(pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH)),safeR:null,modifier2:null};
   seedRNG(seed);
   const rolledMod=pick(MODIFIER_KEYS);
@@ -722,6 +734,7 @@ function killUnit(u,src){
     else if(kt.hp>=150) addShake(Math.min(9,3+kt.hp/140), kt.hp>=500?.28:.16);
   }
   if(u.type==='cannon'){ G.cannonBuilt=false; announce('💥 دُمِّر المدفع!','اجمعوا الجواهر وابنوا واحدًا آخر'); }
+  if(u.type==='xbow'){ G.xbowBuilt=false; announce('💥 دُمِّر الاكس بو!','اجمعوا الجواهر وابنوا واحدًا آخر'); }
   if(u.type==='grove'){
     const T=(src&&src.T&&!src.T.wild)?src.T:null;
     if(T){
@@ -914,6 +927,15 @@ function doBuildCannon(){
   tryBuildCannon(ME());
 }
 
+const xbowBtn=document.getElementById('xbowBtn');
+xbowBtn.addEventListener('touchstart',e=>{ e.preventDefault(); e.stopPropagation(); doBuildXbow(); },{passive:false});
+xbowBtn.addEventListener('click',doBuildXbow);
+function doBuildXbow(){
+  if(!running||!G||!G.coop||G.pvp) return;
+  if(G.coop&&NET.on&&NET.role==='guest'){ NET.wantXbow=true; beep(220,.1,'square',.05); return; }
+  tryBuildXbow(ME());
+}
+
 // ─────────────────────────── منطق اللعبة ───────────────────────────
 function power(T){ let p=0; for(const u of T.units) if(!u.dead) p+=u.hp*.35+u.dmg*3; return p; }
 
@@ -929,7 +951,7 @@ function findTarget(u){
   if(TYPES[u.type]&&TYPES[u.type].buildingOnly){
     return (G.building&&!G.building.dead)? G.building : null;
   }
-  if(u.type==='cannon'){
+  if(u.type==='cannon'||u.type==='xbow'){
     let bestThreat=null, btd=1e12;
     for(const e of G.units){
       if(e.dead||!e.T.wild||!(TYPES[e.type]&&TYPES[e.type].buildingOnly)) continue;
@@ -964,7 +986,7 @@ function findTarget(u){
 
 function hurt(e,dmg,src){
   if(src&&src.T&&e.T&&areAllies(src.T,e.T)) return;
-  if(e.type==='cannon') return;
+  if(e.type==='cannon'||e.type==='xbow') return;
   if(e===G.boss&&e.shieldT>0) dmg*=.2;
   if(e.allyShieldT>0) dmg*=.55;
   e.hp-=dmg; e.hitT=.18;
@@ -1009,7 +1031,7 @@ function updateUnits(dt){
     if(u.poisonT>0){ u.poisonT-=dt; hurt(u,u.poisonDmg*dt,u.poisonSrc); }
     // اختيار هدف
     if(u.re<=0||!u.tgt||u.tgt.dead){ u.tgt=findTarget(u); u.re=.35+rnd(0,.25); }
-    const stationary=u.T.wild||u.type==='cannon'||u.stationaryAlly;
+    const stationary=u.T.wild||u.type==='cannon'||u.type==='xbow'||u.stationaryAlly;
     const anchorX=stationary?u.ax:u.T.x, anchorY=stationary?u.ay:u.T.y;
     const leash=stationary?240:LEASH;
     let dx=0,dy=0,desired=null;
@@ -1070,7 +1092,11 @@ function updateUnits(dt){
     if(dd>3){ u.vx=(dx/dd)*sp; u.vy=(dy/dd)*sp; }
     else { u.vx*=.5; u.vy*=.5; }
     { const nx=u.x+u.vx*dt, ny=u.y+u.vy*dt;
-      if(u.T.wild||!blockedByRiver(nx,ny)){ u.x=nx; u.y=ny; } }
+      if(u.T.wild||!blockedByRiver(nx,ny)){ u.x=nx; u.y=ny; }
+      else{ // انزلاق على حافة النهر بدل التجمّد الكامل
+        if(!blockedByRiver(nx,u.y)) u.x=nx;
+        else if(!blockedByRiver(u.x,ny)) u.y=ny;
+      } }
     pullIn(u,10);
   }
   // تباعد سريع باستخدام شبكة مكانية بدلاً من مقارنة كل وحدة مع كل الوحدات.
@@ -1237,10 +1263,10 @@ function updateTankPickups(dt){
     if(taken) G.tankPickups.splice(i,1);
   }
 }
-const ZONE_DELAY=60, ZONE_MIN_R=280;
+const ZONE_DELAY=60, ZONE_MIN_R=CENTER_HW; // نهاية المباراة: تطابق تمامًا المربع المركزي بلا حظر أي زاوية منه
 function updateSafeZone(dt){
   const wrath=hasMod('wrath');
-  const zoneDelay=wrath?22:ZONE_DELAY, zoneMinR=wrath?190:ZONE_MIN_R;
+  const zoneDelay=wrath?22:ZONE_DELAY, zoneMinR=ZONE_MIN_R;
   const elapsed=G.matchDuration-G.time;
   if(elapsed<zoneDelay){ G.safeR=null; return; }
   const span=Math.max(1,G.matchDuration-zoneDelay);
@@ -1251,7 +1277,7 @@ function updateSafeZone(dt){
   if(wasNull) announce(wrath?'🌿 غضب الغابة يبدأ مبكرًا!':'🌫️ الغابة تضيق!','ابتعدوا عن الحافة أو ستتضرروا بمرور الوقت');
   for(let k=1;k<G.teams.length;k++){
     const T=G.teams[k]; if(T.dead||T.remoteDisconnected) continue;
-    const d=Math.hypot(T.x-ISL.cx,T.y-ISL.cy);
+    const d=Math.max(Math.abs(T.x-ISL.cx),Math.abs(T.y-ISL.cy));
     if(d>G.safeR){
       T.zoneT=(T.zoneT||0)+dt;
       if(T.zoneT>=1){
@@ -1280,6 +1306,19 @@ function tryBuildCannon(T){
   fxSpr('portal',x,y,26,90,.8); fxRing(x,y,'#90a4ae');
   announce('🔫 تم بناء المدفع!','مدفع ثابت لا يُدمَّر — يدافع عن المبنى تلقائيًا ضد الوحوش القريبة');
   if(T.player) beep(180,.3,'square',.08);
+  return true;
+}
+function tryBuildXbow(T){
+  if(!G.coop||G.pvp||!G.building||G.building.dead||G.xbowBuilt) return false;
+  if(!T||T.dead||T.gems<XBOW_COST) return false;
+  T.gems-=XBOW_COST;
+  const x=G.building.x-80, y=G.building.y;
+  const u=addUnit(T,'xbow',1,x,y);
+  if(u) u.size=30;
+  G.xbowBuilt=true;
+  fxSpr('portal',x,y,26,90,.8); fxRing(x,y,'#8d6e4a');
+  announce('🏹 تم بناء الاكس بو!','برج ثابت لا يُدمَّر — مدى بعيد وضربة قوية على هدف واحد');
+  if(T.player) beep(220,.3,'square',.08);
   return true;
 }
 function chestCost(T){
@@ -1420,6 +1459,7 @@ function heroChoiceOverlay(options,T){
 function updateTeams(dt){
   for(let k=1;k<G.teams.length;k++){
     const T=G.teams[k];
+    { const z=zoneAt(T.x,T.y); if(z) T.zoneId=z.id; } // يتذكر آخر مربع كان بداخله (أثناء عبور جسر لا يكون داخل أي مربع)
     if(G.coop&&T.coop&&T.remoteDisconnected){
       T.dash=0; T.dashCd=Math.max(0,T.dashCd-dt);
       T.gx=T.x; T.gy=T.y; T.move=0;
@@ -1456,16 +1496,17 @@ function updateTeams(dt){
     if(T.player){ mx=input.jx; my=input.jy; }
     else if(T.coop&&NET.on&&NET.peerOn){ const p=NET.peerInp; mx=p.x; my=p.y;
       if(p.dash&&T.dashCd<=0){ T.dash=1; T.dashCd=7; p.dash=0; }
-      if(p.cannon){ tryBuildCannon(T); p.cannon=0; } }
+      if(p.cannon){ tryBuildCannon(T); p.cannon=0; }
+      if(p.xbow){ tryBuildXbow(T); p.xbow=0; } }
     else if(T.coop){ // رفيق آلي لين يدخل صديقك
       T.think-=dt;
-      if(T.think<=0){ allyThink(T); clampGoalToZone(T); T.think=rnd(.4,.8); }
+      if(T.think<=0){ allyThink(T); routeGoalViaZones(T); clampGoalToZone(T); T.think=rnd(.4,.8); }
       const dx=T.gx-T.x, dy=T.gy-T.y, d=Math.hypot(dx,dy);
       if(d>16){ mx=dx/d; my=dy/d; }
     }
     else{
       T.think-=dt;
-      if(T.think<=0){ botThink(T); clampGoalToZone(T); T.think=rnd(.7,1.4); }
+      if(T.think<=0){ botThink(T); routeGoalViaZones(T); clampGoalToZone(T); T.think=rnd(.7,1.4); }
       const dx=T.gx-T.x, dy=T.gy-T.y, d=Math.hypot(dx,dy);
       if(d>14){ mx=dx/d; my=dy/d; }
       if(T.dashCd<=0&&Math.random()<dt*.18){ T.dash=1; T.dashCd=9; }
@@ -1480,7 +1521,11 @@ function updateTeams(dt){
     }
     const sp=LEAD_SPD*(T.dash>0?1.7:1)*(T.speedT>0?1.5:1)*grassBoost;
     { const ntx=T.x+mx*sp*dt, nty=T.y+my*sp*dt;
-      if(!blockedByRiver(ntx,nty)){ T.x=ntx; T.y=nty; } }
+      if(!blockedByRiver(ntx,nty)){ T.x=ntx; T.y=nty; }
+      else{ // انزلاق على حافة النهر بدل التجمّد الكامل عند الاقتراب من أي مربع
+        if(!blockedByRiver(ntx,T.y)) T.x=ntx;
+        else if(!blockedByRiver(T.x,nty)) T.y=nty;
+      } }
     pullIn(T,40);
     T.move=Math.hypot(mx,my);
     // اندماج تلقائي
@@ -1492,8 +1537,32 @@ function updateTeams(dt){
 
 function clampGoalToZone(T){
   if(G.safeR==null) return;
-  const dx=T.gx-ISL.cx, dy=T.gy-ISL.cy, d=Math.hypot(dx,dy), R=G.safeR-24;
-  if(d>R){ const a=Math.atan2(dy,dx); T.gx=ISL.cx+Math.cos(a)*R; T.gy=ISL.cy+Math.sin(a)*R; }
+  const dx=T.gx-ISL.cx, dy=T.gy-ISL.cy, d=Math.max(Math.abs(dx),Math.abs(dy)), R=G.safeR-24;
+  if(d>R){ const s=R/d; T.gx=ISL.cx+dx*s; T.gy=ISL.cy+dy*s; }
+}
+function bridgeMid(id){ const b=BRIDGES.find(x=>x.id===id); return b?{x:(b.x0+b.x1)/2,y:(b.y0+b.y1)/2}:null; }
+// نقطة داخل المربع (towardZoneId) فعليًا خلف الجسر مباشرة - وليس منتصف الجسر
+// نفسه - حتى لا تتوقف الفرقة للأبد بمنتصف الجسر (منتصفه لا يزال خارج أي مربع
+// فلا يتحدّث T.zoneId، فتُعاد نفس الوجهة كل دورة تفكير بلا أي تقدّم).
+function bridgeWaypoint(viaId,towardZoneId){
+  const b=BRIDGES.find(x=>x.id===viaId); const z=ZONES.find(x=>x.id===towardZoneId);
+  if(!b||!z) return null;
+  const midx=(b.x0+b.x1)/2, midy=(b.y0+b.y1)/2;
+  const halfLen=Math.min(b.x1-b.x0,b.y1-b.y0)/2, push=halfLen+80;
+  const dx=z.cx-midx, dy=z.cy-midy, d=Math.hypot(dx,dy)||1;
+  return {x:midx+dx/d*push, y:midy+dy/d*push};
+}
+// يوجّه هدف الفرقة عبر الجسر الصحيح بدل خط مستقيم قد يصطدم بالنهر ويجمّد
+// الفريق عند حافة أي مربع؛ الشبكة نجمية (كل مربع طرفي يتصل بالمركز فقط).
+function routeGoalViaZones(T){
+  const curId=T.zoneId||'center', tgtZ=zoneAt(T.gx,T.gy);
+  if(!tgtZ||tgtZ.id===curId) return;
+  const viaId=curId==='center'?tgtZ.id:curId;
+  const live=(G.bridges||[]).find(b=>b.id===viaId);
+  if(!live||live.dead) return; // الجسر مكسور أو غير موجود: لا يوجد توجيه آلي، اترك الهدف كما هو
+  const nextZoneId=curId==='center'?tgtZ.id:'center';
+  const wp=bridgeWaypoint(viaId,nextZoneId);
+  if(wp){ T.gx=wp.x; T.gy=wp.y; }
 }
 function allyThink(T){
   const me=G.teams[MYTEAM];
@@ -1967,8 +2036,8 @@ function stepBossDash(dt){
 function updateBossAI(dt){
   const b=G.boss; if(!b||b.dead) return;
   if(G.safeR!=null){
-    const dx=b.x-ISL.cx, dy=b.y-ISL.cy, d=Math.hypot(dx,dy), R=G.safeR-20;
-    if(d>R){ const a=Math.atan2(dy,dx); b.x=ISL.cx+Math.cos(a)*R; b.y=ISL.cy+Math.sin(a)*R; }
+    const dx=b.x-ISL.cx, dy=b.y-ISL.cy, d=Math.max(Math.abs(dx),Math.abs(dy)), R=G.safeR-20;
+    if(d>R){ const s=R/d; b.x=ISL.cx+dx*s; b.y=ISL.cy+dy*s; }
   }
   b.ax=b.x; b.ay=b.y; // بلا قفص: يلاحق اللاعبين بلا حدود مسافة عن نقطة ظهوره، لكن لا يتجاوز المنطقة الآمنة
   b.phase = b.hp>b.max*.7?1 : b.hp>b.max*.35?2:3;
@@ -2165,7 +2234,7 @@ function draw(){
     ctx.save();
     ctx.beginPath();
     ctx.rect(cam.x-100,cam.y-100,vw+200,vh+200);
-    ctx.arc(ISL.cx,ISL.cy,G.safeR,0,TAU,true);
+    ctx.rect(ISL.cx-G.safeR,ISL.cy-G.safeR,G.safeR*2,G.safeR*2);
     ctx.clip('evenodd');
     ctx.fillStyle='rgba(60,10,80,.26)';
     ctx.fillRect(cam.x-100,cam.y-100,vw+200,vh+200);
@@ -2173,7 +2242,7 @@ function draw(){
 
     ctx.save();
     ctx.strokeStyle='#ba68c8'; ctx.lineWidth=6; ctx.globalAlpha=.8; ctx.setLineDash([16,10]);
-    ctx.beginPath(); ctx.arc(ISL.cx,ISL.cy,G.safeR,0,TAU); ctx.stroke();
+    ctx.strokeRect(ISL.cx-G.safeR,ISL.cy-G.safeR,G.safeR*2,G.safeR*2);
     ctx.setLineDash([]);
     ctx.restore();
   }
@@ -2320,7 +2389,7 @@ if(typeof FIXED_CHESTS!=='undefined') for(const p of FIXED_CHESTS){
     ctx.beginPath(); ctx.arc(p[0],p[1],22+Math.sin(G.t*2+p[0])*2,0,TAU); ctx.stroke();
   }
 }
-const KNOWN_SPAWNS=[[520,520],[1600,460],[2680,520],[420,1600],[2780,1580],[620,2660],[1640,2860],[2700,2660]];
+const KNOWN_SPAWNS=[[1040,1040],[3200,920],[5360,1040],[840,3200],[5560,3160],[1240,5320],[3280,5720],[5400,5320]];
 for(const p of KNOWN_SPAWNS) if(vis(p[0],p[1],35)){
   ctx.globalAlpha=.08; ctx.strokeStyle='#ef5350'; ctx.lineWidth=3; ctx.setLineDash([8,8]);
   ctx.beginPath(); ctx.arc(p[0],p[1],34,0,TAU); ctx.stroke(); ctx.setLineDash([]);
@@ -2984,6 +3053,17 @@ function drawExtraCharacter(type,x,y,h,face,hit){
     ctx.fillStyle='#37474f'; ctx.beginPath(); ctx.roundRect(-12,-66,24,12,5); ctx.fill();
     ctx.restore();
     ctx.fillStyle='#ffb300'; ctx.beginPath(); ctx.arc(0,-10,6,0,TAU); ctx.fill();
+  }else if(type==='xbow'){
+    ctx.fillStyle=flash?'#fff':'#6d4c30'; ctx.beginPath(); ctx.roundRect(-30,-6,60,30,8); ctx.fill();
+    ctx.fillStyle='#4a3320'; ctx.beginPath(); ctx.arc(-18,22,12,0,TAU); ctx.arc(18,22,12,0,TAU); ctx.fill();
+    ctx.fillStyle='#8d6e4a'; ctx.beginPath(); ctx.arc(-18,22,6,0,TAU); ctx.arc(18,22,6,0,TAU); ctx.fill();
+    ctx.fillStyle=flash?'#fff':'#5d4033'; ctx.beginPath(); ctx.roundRect(-6,-46,12,44,4); ctx.fill();
+    ctx.strokeStyle=flash?'#fff':'#3e2723'; ctx.lineWidth=6; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(-38,-40); ctx.quadraticCurveTo(0,-58,38,-40); ctx.stroke();
+    ctx.strokeStyle='#d7ccc8'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(-38,-40); ctx.lineTo(38,-40); ctx.stroke();
+    ctx.fillStyle='#a1887f'; ctx.beginPath(); ctx.moveTo(0,-40); ctx.lineTo(-8,-34); ctx.lineTo(8,-34); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#ffb300'; ctx.beginPath(); ctx.arc(0,-40,4,0,TAU); ctx.fill();
   }else if(type==='sprite'){
     const grd=ctx.createRadialGradient(0,-40,4,0,-40,70);
     grd.addColorStop(0,'rgba(120,255,220,.5)'); grd.addColorStop(1,'rgba(120,255,220,0)');
@@ -3102,7 +3182,7 @@ function drawUnit(u){
     else if(bossKey==='colossus') drawStoneColossus(0,u.size*.6-bob,h,bob,u.hitT);
     else if(bossKey==='spirit') drawAncientSpirit(0,u.size*.6-bob,h,bob,u.hitT);
     else drawFinalBoss(0,u.size*.6-bob,h,bob,u.hitT);
-  } else if(['knight','druid','samurai','wolf','shaman','titan','saboteur','elite','grove','cannon','sprite','boulder','viper','bee','frost','venom','vampire','twin','lumberjack','cutter','swift','ranger','gemwell','blizzard','demolisher','beekeeper','sprinter','bootsy','tank','timemage','babydragon','thunderspirit','phantom','guardian'].includes(u.type)){
+  } else if(['knight','druid','samurai','wolf','shaman','titan','saboteur','elite','grove','cannon','xbow','sprite','boulder','viper','bee','frost','venom','vampire','twin','lumberjack','cutter','swift','ranger','gemwell','blizzard','demolisher','beekeeper','sprinter','bootsy','tank','timemage','babydragon','thunderspirit','phantom','guardian'].includes(u.type)){
     drawExtraCharacter(u.type,0,u.size*.6-bob,h,u.face||1,u.hitT);
   } else {
     if((u.face||1)<0) ctx.scale(-1,1);
@@ -3339,12 +3419,21 @@ function updateCoopHud(){
     (b? '<div class="bossbar"><i style="width:'+Math.max(0,Math.round(b.hp/b.max*100))+'%"></i></div><div class="crow">'+roster.emoji+' '+roster.name+' ('+(G.bossTier||1)+'/'+BOSSES.length+')</div>'
       : (G.bossDown?'<div class="crow ok">🏆 كل الزعماء سقطوا!</div>':''))+
     (G.building? '<div class="bossbar"><i style="width:'+Math.max(0,Math.round(G.building.hp/G.building.max*100))+'%;background:linear-gradient(90deg,#ffb300,#ffd54f)"></i></div><div class="crow'+(G.building.dead?'':'')+'">🏰 المبنى</div>' : '');
-  const showCannon=G.building&&!G.building.dead&&!G.cannonBuilt;
+  const T=ME();
+  // الزران يظهران فقط عندما تكون فرقتك قريبة من المبنى (داخل المربع المركزي) —
+  // لا حاجة لإزعاج الشاشة بهما طوال الوقت.
+  const nearBuilding=G.building&&!G.building.dead&&zoneAt(T.x,T.y)?.id==='center';
+  const showCannon=nearBuilding&&!G.cannonBuilt;
+  const showXbow=nearBuilding&&!G.xbowBuilt;
   cannonBtn.classList.toggle('hide',!showCannon);
+  xbowBtn.classList.toggle('hide',!showXbow);
   if(showCannon){
-    const T=ME();
     cannonBtn.classList.toggle('afford',T.gems>=CANNON_COST);
     document.getElementById('cannonCost').textContent=CANNON_COST+' 💎';
+  }
+  if(showXbow){
+    xbowBtn.classList.toggle('afford',T.gems>=XBOW_COST);
+    document.getElementById('xbowCost').textContent=XBOW_COST+' 💎';
   }
 }
 
@@ -3449,7 +3538,7 @@ async function netConnect(roomCode, desiredRole){
 
   try{ if(NET.ch && NET.ch.unsubscribe) NET.ch.unsubscribe(); }catch(e){}
   if(NET.ch && NET.ch.ws){ try{ NET.ch.ws.close(); }catch(e){} }
-  NET.on=false; NET.ch=null; NET.peerOn=false; NET.peerLastSeen=0; NET.peerInp={x:0,y:0,dash:0,cannon:0};
+  NET.on=false; NET.ch=null; NET.peerOn=false; NET.peerLastSeen=0; NET.peerInp={x:0,y:0,dash:0,cannon:0,xbow:0};
 
   const wsUrl=SUPA_URL.replace(/^https:/,'wss:').replace(/^http:/,'ws:')+
     '/realtime/v1/websocket?apikey='+encodeURIComponent(SUPA_KEY)+'&vsn=2.0.0';
@@ -3516,7 +3605,7 @@ async function netConnect(roomCode, desiredRole){
     if(evn==='i'){
       if(NET.role==='host'){
         NET.peerLastSeen=Date.now();
-        NET.peerInp.x=data.x; NET.peerInp.y=data.y; if(data.d) NET.peerInp.dash=1; if(data.c) NET.peerInp.cannon=1;
+        NET.peerInp.x=data.x; NET.peerInp.y=data.y; if(data.d) NET.peerInp.dash=1; if(data.c) NET.peerInp.cannon=1; if(data.xb) NET.peerInp.xbow=1;
       }
       return;
     }
@@ -3529,7 +3618,7 @@ async function netConnect(roomCode, desiredRole){
     if(NET.role!=='host' || !NET.peerOn) return;
     NET.peerOn=false;
     NET.peerLastSeen=0;
-    NET.peerInp={x:0,y:0,dash:0,cannon:0};
+    NET.peerInp={x:0,y:0,dash:0,cannon:0,xbow:0};
     netStatus('صديقك خرج من اللعبة · الرفيق متوقف');
     if(G&&G.coop&&running){
       // مهم: لا نحول اللاعب الحقيقي إلى بوت. فرقة الصديق تتجمد مكانها فقط.
@@ -3640,7 +3729,7 @@ function makeSnap(){
   for(const u of G.units){ if(u.dead) continue;
     U.push([u.id,u.T.i,HERO_KEYS.indexOf(u.type)>=0?HERO_KEYS.indexOf(u.type):
       (u.type==='slime'?28:u.type==='brute'?29:u.type==='boss'?30:u.type==='wolf'?31:u.type==='shaman'?32:u.type==='titan'?33:u.type==='saboteur'?34:u.type==='elite'?35:u.type==='grove'?36:u.type==='cannon'?37:u.type==='sprite'?38:
-       u.type==='timemage'?39:u.type==='babydragon'?40:u.type==='thunderspirit'?41:u.type==='phantom'?42:u.type==='guardian'?43:u.type==='boulder'?44:u.type==='viper'?45:u.type==='bee'?46:u.type==='tank'?47:34),
+       u.type==='timemage'?39:u.type==='babydragon'?40:u.type==='thunderspirit'?41:u.type==='phantom'?42:u.type==='guardian'?43:u.type==='boulder'?44:u.type==='viper'?45:u.type==='bee'?46:u.type==='tank'?47:u.type==='xbow'?48:34),
       u.lvl,Math.round(u.x),Math.round(u.y),Math.round(u.hp),Math.round(u.max),u.face||1]); }
   const TS=G.teams.slice(1).map(T=>[Math.round(T.x),Math.round(T.y),T.gems,T.dead?1:0,Math.round(T.dashCd*10)]);
   const CH=G.chests.map(c=>[Math.round(c.x),Math.round(c.y),c.big?1:0,c.super?1:0,c.isMimic?1:0]);
@@ -3665,7 +3754,7 @@ function makeSnap(){
           GS:G.goldSpirit?[Math.round(G.goldSpirit.x),Math.round(G.goldSpirit.y),Math.round(G.goldSpirit.t*10)]:null,
           U,TS,CH,GM,RS,HT,SO,TP};
 }
-const SNAPKEY=[...HERO_KEYS,'slime','brute','boss','wolf','shaman','titan','saboteur','elite','grove','cannon','sprite','timemage','babydragon','thunderspirit','phantom','guardian','boulder','viper','bee','tank'];
+const SNAPKEY=[...HERO_KEYS,'slime','brute','boss','wolf','shaman','titan','saboteur','elite','grove','cannon','sprite','timemage','babydragon','thunderspirit','phantom','guardian','boulder','viper','bee','tank','xbow'];
 function applySnap(s){
   if(!G||!G.coop) return;
   G.time=s.t/10; G.wave=s.w; G.lives=s.l; G.shared=s.sh; G.bossDown=!!s.bd; G.bossTier=s.bt||0;
@@ -3722,7 +3811,7 @@ function netTick(dt){
     if(NET.snapT<=0){ NET.snapT=.14; netSend('s',makeSnap()); }
   }else{
     NET.sendT-=dt;
-    if(NET.sendT<=0){ NET.sendT=.09; netSend('i',{x:+input.jx.toFixed(2),y:+input.jy.toFixed(2),d:NET.wantDash?1:0,c:NET.wantCannon?1:0}); NET.wantDash=false; NET.wantCannon=false; }
+    if(NET.sendT<=0){ NET.sendT=.09; netSend('i',{x:+input.jx.toFixed(2),y:+input.jy.toFixed(2),d:NET.wantDash?1:0,c:NET.wantCannon?1:0,xb:NET.wantXbow?1:0}); NET.wantDash=false; NET.wantCannon=false; NET.wantXbow=false; }
     netLerp(dt);
   }
 }
