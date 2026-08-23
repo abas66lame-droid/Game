@@ -148,6 +148,17 @@
   .bar{display:flex;align-items:center;gap:4px;font-size:9.5px;opacity:.85;margin:2px 0}
   .bar i{display:block;height:5px;border-radius:3px;background:#8bc34a}
   .bar u{display:block;flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.15)}
+  .campbtn{background:linear-gradient(180deg,#ffca28,#f57f17)}
+  .campList{max-height:calc(var(--vh100, 100vh) * .58);overflow:auto;text-align:right;margin:10px 0}
+  .campCard{display:flex;gap:12px;align-items:center;background:rgba(255,255,255,.07);
+    border:2px solid rgba(255,213,79,.35);border-radius:16px;padding:10px 12px;margin-bottom:9px;cursor:pointer}
+  .campCard:active{transform:translateY(2px)}
+  .campCard.locked{opacity:.5;cursor:default;border-color:rgba(255,255,255,.12)}
+  .campEmoji{font-size:34px;flex:0 0 44px;text-align:center}
+  .campBody{flex:1}
+  .campName{font-weight:800;font-size:16px}
+  .campDesc{font-size:12px;opacity:.75;line-height:1.5;margin-top:2px}
+  .campStars{font-size:15px;margin-top:3px;letter-spacing:2px}
 </style>
 
 <style id="friendsCss">
@@ -214,12 +225,21 @@
       🏆 صاحب أكثر جواهر عند انتهاء الوقت هو الفائز. <img id="ruleGemImg" style="height:24px;vertical-align:middle;border-radius:6px">
     </div>
     <button class="btn" id="play">🕹️ لعب فردي</button>
+    <button class="btn campbtn" id="playCampaign">🗺️ الحملة (9 مهام)</button>
     <button class="btn coopbtn" id="playCoop">👥 لعب مع صديقي (PvE أونلاين)</button>
     <button class="btn duelbtn" id="playDuel">⚔️ مبارزة 1vs1 (PvP أونلاين)</button>
     <button class="btn bossbtn" id="playBoss">👹 مواجهة الزعيم — تحكّم كامل (PvP أونلاين)</button>
     <button class="btn pvebtn" id="playPve">🛡️ PvE مع رفيق آلي (بدون نت)</button>
     <div class="netmsg" id="netMsg"></div>
     <div class="hint">لعبة مستوحاة من ألعاب جمع الفرق — شخصياتها وتصميمها أصلية.<br>على الكمبيوتر: أسهم/WASD للحركة، مسافة للاندفاع.</div>
+  </div>
+</div>
+
+<div class="screen hide" id="campaignSelect">
+  <div class="card wide">
+    <h1>خريطة الحملة<em>9 مهام تتصاعد صعوبة — أكملوا واحدة لفتح التالية</em></h1>
+    <div class="campList" id="campaignList"></div>
+    <button class="btn" id="campBack">رجوع للقائمة</button>
   </div>
 </div>
 
@@ -237,6 +257,8 @@
     <h1 id="endTitle">انتهت الجولة</h1>
     <div class="rank" id="rank"></div>
     <button class="btn" id="again">العب مرة ثانية</button>
+    <button class="btn campbtn" id="campNext" style="display:none">🎯 المهمة التالية</button>
+    <button class="btn" id="campMap" style="display:none">🗺️ خريطة المهمات</button>
   </div>
 </div>
 
@@ -466,6 +488,60 @@ const TEAMS=[
   {n:'فرقة الأفعى', c:'#ab47bc'},
 ];
 
+// ─────────────────────────── وضع الحملة (مهام فردية متسلسلة) ───────────────────────────
+const CAMPAIGN_TEAMS=[
+  {n:'البرية', c:'#795548', wild:true},
+  {n:'أنت',    c:'#ffffff', player:true, coop:true},
+];
+// كل مهمة تُبنى فوق نفس محرك التعاون (موجات، زعيم بالذكاء الاصطناعي، مبنى، أرواح)
+// فقط بمعطيات مختلفة - بلا محرك موازٍ جديد.
+const CAMPAIGN_MISSIONS=[
+  {id:1, key:'tutorial', name:'الدرس الأول', emoji:'📘',
+   desc:'اجمعوا 130 جوهرة قبل نفاد الوقت — تدريب سريع بلا مخاطر تُذكر.',
+   type:'collect', target:130, time:100, heroes:['fighter','archer'], initialWild:1, noSafeZone:true},
+  {id:2, key:'camps', name:'معسكرات الوحوش', emoji:'🏕️',
+   desc:'دمّروا معسكرات الوحوش الأربعة المنتشرة في زوايا الخريطة.',
+   type:'camps', camps:4, campSize:3, time:170, heroes:['fighter','archer','miner'], noSafeZone:true},
+  {id:3, key:'bridge', name:'عبور الجسر', emoji:'🌉',
+   desc:'اعبروا من المربع الجنوبي إلى الراية بالمربع الشمالي — نمنحكم الكشّاف السريع مجانًا.',
+   type:'reach', targetZone:'n', spawnZone:'s', time:150, heroes:['fighter','archer','scout'], noSafeZone:true},
+  {id:4, key:'defend', name:'الدفاع عن المبنى', emoji:'🏰',
+   desc:'احموا مبناكم من موجات وحوش متصاعدة لمدة 3 دقائق كاملة.',
+   type:'defend', time:180, waveEvery:11, lives:6, heroes:['fighter','archer','giant','knight']},
+  {id:5, key:'boss1', name:'ملكة العناكب', emoji:'🕷️',
+   desc:'زعيمة متوسطة القوة تظهر فورًا — أسقطوها قبل نفاد الوقت أو الأرواح.',
+   type:'boss', bossTier:2, time:220, lives:5, heroes:['fighter','archer','giant','knight']},
+  {id:6, key:'goldspirit', name:'الروح الذهبية الهاربة', emoji:'🌟',
+   desc:'الروح الذهبية تتنقل بالخريطة — أمسكوها وسط هجمات وحوش متكررة.',
+   type:'gold', time:170, waveEvery:16, heroes:['fighter','archer','scout'], noSafeZone:true},
+  {id:7, key:'gauntlet', name:'حشد الوحوش الكبير', emoji:'🌊',
+   desc:'اصمدوا أمام 6 موجات متتالية ونظّفوا الساحة كاملة في النهاية.',
+   type:'gauntlet', waves:6, waveEvery:14, time:230, lives:6, heroes:['fighter','archer','giant','knight','healer']},
+  {id:8, key:'boss2', name:'عملاق الصخر', emoji:'🗿',
+   desc:'زعيم ثقيل الدروع يتدرّع دوريًا — معركة أطول وأصعب.',
+   type:'boss', bossTier:3, time:260, lives:4, heroes:['fighter','archer','giant','knight','healer']},
+  {id:9, key:'finale', name:'روح الغابة القديمة', emoji:'🐉',
+   desc:'المواجهة الأخيرة — أقوى زعيم بكل حركاته، يستدعي أعوانًا ويتجدد دوريًا.',
+   type:'finale', bossTier:4, time:300, lives:3, heroes:['fighter','archer','giant','knight','healer','mage']},
+];
+let CUR_MISSION=null; // تعريف المهمة الجارية أثناء اللعب فقط
+const CAMPAIGN_KEY='forest_campaign_v1';
+function loadCampaignSave(){
+  try{ const raw=localStorage.getItem(CAMPAIGN_KEY); if(raw){ const s=JSON.parse(raw); if(s&&typeof s==='object') return {unlocked:s.unlocked||1, stars:s.stars||{}, completed:s.completed||[]}; } }catch(e){}
+  return {unlocked:1, stars:{}, completed:[]};
+}
+function saveCampaignSave(){ try{ localStorage.setItem(CAMPAIGN_KEY,JSON.stringify(CAMPAIGN_SAVE)); }catch(e){} }
+let CAMPAIGN_SAVE=loadCampaignSave();
+function campaignIsUnlocked(id){ return id<=CAMPAIGN_SAVE.unlocked; }
+function campaignRecordResult(mission,won,stars){
+  if(won){
+    if(!CAMPAIGN_SAVE.completed.includes(mission.id)) CAMPAIGN_SAVE.completed.push(mission.id);
+    CAMPAIGN_SAVE.stars[mission.id]=Math.max(CAMPAIGN_SAVE.stars[mission.id]||0,stars);
+    if(mission.id>=CAMPAIGN_SAVE.unlocked) CAMPAIGN_SAVE.unlocked=Math.min(CAMPAIGN_MISSIONS.length,mission.id+1);
+  }
+  saveCampaignSave();
+}
+
 // ─────────────────────────── إعدادات ───────────────────────────
 const MAP=6400, MATCH=300, SQUAD_MAX=200, AGGRO=190, LEASH=185, LEAD_SPD=230, TURBO=25;
 
@@ -564,7 +640,8 @@ function newGame(mode,seed,forcedMods){
   shakeMag=0; shakeT=0; lastShakeAt=-99;
   MODE=mode||'solo';
   const pvp=MODE==='duel'||MODE==='boss';
-  const coop=MODE==='coop'||pvp;
+  const campaignMode=MODE==='campaign';
+  const coop=MODE==='coop'||pvp||campaignMode;
   const bossMode=MODE==='boss';
   seed=seed||((Math.random()*1e9)>>>0);
   G={t:0,time:bossMode?BOSS_MATCH:(pvp?DUEL_MATCH:(coop?COOP_MATCH:MATCH)),uid:1,teams:[],units:[],res:[],chests:[],gems:[],shots:[],fx:[],
@@ -593,7 +670,7 @@ function newGame(mode,seed,forcedMods){
       return {at:base-elapsed,k};
     });
   }
-  (bossMode?BOSS_TEAMS:(pvp?DUEL_TEAMS:(coop?COOP_TEAMS:TEAMS))).forEach((d,i)=>{
+  (bossMode?BOSS_TEAMS:(pvp?DUEL_TEAMS:(campaignMode?CAMPAIGN_TEAMS:(coop?COOP_TEAMS:TEAMS)))).forEach((d,i)=>{
     G.teams.push({i,n:d.n,c:d.c,wild:!!d.wild,player:!!d.player,coop:!!d.coop,gems:0,units:[],
       x:0,y:0,gx:0,gy:0,dead:false,resp:0,dash:0,dashCd:0,think:0,move:0});
   });
@@ -608,6 +685,9 @@ function newGame(mode,seed,forcedMods){
     if(pvp){
       const z=ZONES.find(zz=>zz.id===spawnOrder[i-1]);
       T.x=z.cx; T.y=z.cy;
+    }else if(campaignMode&&CUR_MISSION&&CUR_MISSION.spawnZone){
+      const z=ZONES.find(zz=>zz.id===CUR_MISSION.spawnZone);
+      T.x=z?z.cx:ISL.cx; T.y=z?z.cy:ISL.cy;
     }else if(coop){
       T.x=ISL.cx+(i===1?-120:120); T.y=ISL.cy;
     }else{
@@ -626,13 +706,16 @@ function newGame(mode,seed,forcedMods){
         mb.homeX=T.x; mb.homeY=T.y; mb.humanControlled=true; mb.abilityCds={};
         G.boss=mb;
       }
+    }else if(campaignMode&&CUR_MISSION){
+      (CUR_MISSION.heroes||['fighter','archer','giant','knight']).forEach(hk=>addUnit(T,hk,1,T.x,T.y));
     }else{
       addUnit(T,'fighter',1,T.x,T.y); addUnit(T,'archer',1,T.x,T.y); addUnit(T,pick(['miner','healer','giant']),1,T.x,T.y); addUnit(T,pick(['knight','druid','samurai']),1,T.x,T.y);
     }
   }
   unseedRNG();
   if(coop){ G.teams[MYTEAM].player=true; for(let i=1;i<G.teams.length;i++) if(i!==MYTEAM) G.teams[i].player=false; }
-  G.building=(coop&&!pvp)?{x:ISL.cx,y:ISL.cy,hp:BUILDING_HP,max:BUILDING_HP,size:60,dead:false,isBuilding:true}:null;
+  G.building=(coop&&!pvp&&!campaignMode)?{x:ISL.cx,y:ISL.cy,hp:BUILDING_HP,max:BUILDING_HP,size:60,dead:false,isBuilding:true}:null;
+  if(campaignMode&&CUR_MISSION) applyCampaignMission();
   document.body.classList.toggle('coop',coop);
   document.body.classList.toggle('pvp',pvp);
   updateSquadBar(true); updateBoard(true);
@@ -658,7 +741,7 @@ function buildWorld(){
   }
   // وحوش برية: موزعة على كل الخريطة، المنتصف خفيف جدًا والأطراف قوية جدًا.
   const wild=G.teams[0];
-  for(let i=0;i<(G.coop?4:2);i++){
+  for(let i=0;i<(MODE==='campaign'?(CUR_MISSION&&CUR_MISSION.initialWild||0):(G.coop?4:2));i++){
     const a=rnd(0,TAU), frac=.08+Math.pow(RND(),.85)*.9;
     const R=islR(a)*frac*.92;
     const x=ISL.cx+Math.cos(a)*R, y=ISL.cy+Math.sin(a)*R;
@@ -1341,6 +1424,7 @@ function updateTankPickups(dt){
 }
 const ZONE_DELAY=60, ZONE_MIN_R=CENTER_HW; // نهاية المباراة: تطابق تمامًا المربع المركزي بلا حظر أي زاوية منه
 function updateSafeZone(dt){
+  if(MODE==='campaign'&&CUR_MISSION&&CUR_MISSION.noSafeZone){ G.safeR=null; return; }
   const wrath=hasMod('wrath');
   const zoneDelay=wrath?22:ZONE_DELAY, zoneMinR=ZONE_MIN_R;
   const elapsed=G.matchDuration-G.time;
@@ -2221,14 +2305,181 @@ function updateCoop(dt){
   if(G.boss&&!G.boss.dead){ G.mark={x:G.boss.x,y:G.boss.y,t:3}; updateBossAI(dt); }
 }
 
+// ─────────────────────────── محرك مهام الحملة (فوق نفس أنظمة التعاون) ───────────────────────────
+function spawnCampGroup(cx,cy,size){
+  const ids=[]; const kinds=['brute','wolf','shaman','viper','boulder','elite'];
+  for(let i=0;i<size;i++){
+    let x=cx,y=cy;
+    for(let tries=0;tries<20;tries++){
+      const a=rnd(0,TAU), r=rnd(20,150);
+      const cx2=cx+Math.cos(a)*r, cy2=cy+Math.sin(a)*r;
+      if(!blockedByRiver(cx2,cy2)){ x=cx2; y=cy2; break; }
+    }
+    const u=addUnit(G.teams[0],pick(kinds),1,x,y);
+    if(u){ u.camp=true; u.ax=x; u.ay=y; ids.push(u.id); }
+  }
+  return ids;
+}
+function applyCampaignMission(){
+  const m=CUR_MISSION; if(!m) return;
+  G.modifier=null; G.modifier2=null; G.evQ=[];
+  const mp=document.getElementById('modPill'); if(mp) mp.style.display='none';
+  G.matchDuration=m.time; G.time=m.time;
+  if(typeof m.lives==='number') G.lives=m.lives;
+  G.building=(m.type==='defend')?{x:ISL.cx,y:ISL.cy,hp:BUILDING_HP,max:BUILDING_HP,size:60,dead:false,isBuilding:true}:null;
+  G.campaign={type:m.type, campUnitIds:[], reachPoint:null, waveT:0, wavesTarget:m.waves||0, finaleT:16, finaleStep:0};
+  if(m.type==='camps'){
+    for(const z of ZONES.filter(zz=>zz.id!=='center')) G.campaign.campUnitIds.push(...spawnCampGroup(z.cx,z.cy,m.campSize||3));
+  }else if(m.type==='reach'){
+    const z=ZONES.find(zz=>zz.id===m.targetZone)||ZONES[0];
+    G.campaign.reachPoint={x:z.cx,y:z.cy,r:150};
+  }else if(m.type==='boss'||m.type==='finale'){
+    spawnBoss(m.bossTier||1);
+  }else if(m.type==='gold'){
+    const [gx,gy]=randIsl(200);
+    G.goldSpirit={x:gx,y:gy,t:m.time+999,moveT:rnd(4,6)};
+    G.campaign.waveT=m.waveEvery||16;
+  }else if(m.type==='defend'){
+    G.campaign.waveT=(m.waveEvery||WAVE_EVERY)*.6;
+  }else if(m.type==='gauntlet'){
+    G.campaign.waveT=m.waveEvery||WAVE_EVERY;
+  }
+  setTimeout(()=>{ if(MODE==='campaign'&&CUR_MISSION===m&&!G.over) announce(m.emoji+' '+m.name,m.desc); },400);
+}
+function updateCampaign(dt){
+  const m=CUR_MISSION, c=G.campaign; if(!m||!c) return;
+  const T=G.teams[MYTEAM]; if(!T) return;
+  if(c.type==='collect'){
+    if(!G.over&&T.gems>=m.target){ G.won=true; endMatch(); }
+  }else if(c.type==='camps'){
+    const left=c.campUnitIds.filter(id=>{ const u=G.units.find(uu=>uu.id===id); return u&&!u.dead; }).length;
+    if(!G.over&&left<=0){ G.won=true; endMatch(); }
+  }else if(c.type==='reach'){
+    const p=c.reachPoint;
+    if(p&&!G.over&&Math.hypot(T.x-p.x,T.y-p.y)<=p.r){ G.won=true; endMatch(); }
+  }else if(c.type==='defend'){
+    c.waveT-=dt;
+    if(c.waveT<=0&&G.time>2){ spawnWave(); c.waveT=m.waveEvery||WAVE_EVERY; }
+    if(!G.over&&G.time<=0&&G.building&&!G.building.dead){ G.won=true; endMatch(); }
+  }else if(c.type==='boss'){
+    if(G.boss&&!G.boss.dead){ G.mark={x:G.boss.x,y:G.boss.y,t:3}; updateBossAI(dt); }
+    if(!G.over&&G.boss&&G.boss.dead){ G.won=true; endMatch(); }
+  }else if(c.type==='gold'){
+    c.waveT-=dt;
+    if(c.waveT<=0&&G.time>2){ spawnWave(); c.waveT=m.waveEvery||WAVE_EVERY; }
+    if(!G.over&&!G.goldSpirit){ G.won=true; endMatch(); }
+  }else if(c.type==='gauntlet'){
+    if(G.wave<c.wavesTarget){
+      c.waveT-=dt;
+      if(c.waveT<=0&&G.time>2){ spawnWave(); c.waveT=m.waveEvery||WAVE_EVERY; }
+    }
+    const aliveWild=G.teams[0].units.filter(u=>!u.dead&&u.type!=='boss').length;
+    if(!G.over&&G.wave>=c.wavesTarget&&aliveWild===0){ G.won=true; endMatch(); }
+  }else if(c.type==='finale'){
+    if(G.boss&&!G.boss.dead){
+      G.mark={x:G.boss.x,y:G.boss.y,t:3}; updateBossAI(dt);
+      c.finaleT-=dt;
+      if(c.finaleT<=0){
+        c.finaleStep=(c.finaleStep||0)+1;
+        const abKey=c.finaleStep%3===0?'heal':(c.finaleStep%2===0?'summon':'roar');
+        if(BOSS_ABILITY_FN[abKey]) BOSS_ABILITY_FN[abKey]();
+        c.finaleT=rnd(14,20);
+      }
+    }
+    if(!G.over&&G.boss&&G.boss.dead){ G.won=true; endMatch(); }
+  }
+}
+function updateCampaignHud(){
+  const el=document.getElementById('coop'); if(!el) return;
+  const m=CUR_MISSION, c=G.campaign; if(!m||!c){ el.innerHTML=''; return; }
+  const T=ME();
+  let html='<div class="crow">'+m.emoji+' '+m.name+'</div>';
+  if(m.type==='collect'){
+    html+='<div class="crow">💎 '+T.gems+' / '+m.target+'</div>';
+  }else if(m.type==='camps'){
+    const left=c.campUnitIds.filter(id=>{ const u=G.units.find(uu=>uu.id===id); return u&&!u.dead; }).length;
+    const groups=Math.ceil(left/((m.campSize||3)||1));
+    html+='<div class="crow">🏕️ معسكرات متبقية: '+groups+'</div>';
+  }else if(m.type==='reach'){
+    const p=c.reachPoint, d=p?Math.max(0,Math.round(Math.hypot(T.x-p.x,T.y-p.y))):0;
+    html+='<div class="crow">🚩 المسافة للراية: '+d+'</div>';
+  }else if(m.type==='defend'){
+    html+='<div class="crow">🌊 الموجة '+G.wave+'</div><div class="crow">'+'❤️'.repeat(Math.max(0,G.lives))+'</div>'+
+      (G.building?'<div class="bossbar"><i style="width:'+Math.max(0,Math.round(G.building.hp/G.building.max*100))+'%;background:linear-gradient(90deg,#ffb300,#ffd54f)"></i></div><div class="crow">🏰 المبنى</div>':'');
+  }else if(m.type==='boss'||m.type==='finale'){
+    const b=G.boss;
+    html+='<div class="crow">'+'❤️'.repeat(Math.max(0,G.lives))+'</div>'+
+      (b&&!b.dead?'<div class="bossbar"><i style="width:'+Math.max(0,Math.round(b.hp/b.max*100))+'%"></i></div><div class="crow">👹 صحة الزعيم</div>':'');
+  }else if(m.type==='gauntlet'){
+    html+='<div class="crow">🌊 '+G.wave+' / '+m.waves+'</div><div class="crow">'+'❤️'.repeat(Math.max(0,G.lives))+'</div>';
+  }else if(m.type==='gold'){
+    html+='<div class="crow">🌟 أمسكوا الروح المتنقلة!</div>';
+  }
+  el.innerHTML=html;
+}
+function campaignStars(mission){
+  const t=mission.type; let frac;
+  if(t==='defend'||t==='gauntlet') frac=clamp(G.lives/(mission.lives||COOP_LIVES),0,1);
+  else if(t==='boss'||t==='finale') frac=clamp((G.lives/(mission.lives||COOP_LIVES))*.5+(G.time/mission.time)*.5,0,1);
+  else frac=clamp(G.time/mission.time,0,1);
+  return frac>=.55?3:(frac>=.22?2:1);
+}
+function endCampaignMatch(){
+  const m=CUR_MISSION, win=!!G.won;
+  const stars=win?campaignStars(m):0;
+  if(m) campaignRecordResult(m,win,stars);
+  const starsHtml='<div style="font-size:32px;letter-spacing:5px;margin:6px 0">'+('⭐'.repeat(stars)+'☆'.repeat(3-stars))+'</div>';
+  elTitle.innerHTML=(win?'أُنجزت المهمة! 🏆':'فشلت المهمة 💀')+
+    '<em style="font-style:normal;display:block;font-size:15px;opacity:.8;margin-top:6px">'+(m?m.name:'')+'</em>';
+  elRank.innerHTML=starsHtml+
+    '<div class="'+(win?'me':'')+'"><span>💎 الجواهر</span><span>'+(ME()?ME().gems:0)+'</span></div>'+
+    '<div><span>❤️ الأرواح المتبقية</span><span>'+Math.max(0,G.lives)+'</span></div>'+
+    '<div><span>⏱️ الوقت المتبقي</span><span>'+Math.max(0,Math.round(G.time))+'ث</span></div>';
+  if(win){ const me=ME(); fxConfettiBurst(me.x,me.y-30,26); fxBeam(me.x,me.y,'#ffe082',1.3); }
+  elTitle.classList.toggle('winPop',win);
+  document.getElementById('again').style.display='none';
+  const hasNext=!!(m&&m.id<CAMPAIGN_MISSIONS.length);
+  document.getElementById('campNext').style.display=(win&&hasNext)?'':'none';
+  document.getElementById('campMap').style.display='';
+  elEnd.classList.remove('hide');
+  beep(win?660:180,.2,'triangle',.06);
+}
+function startCampaignMission(id){
+  const def=CAMPAIGN_MISSIONS.find(mm=>mm.id===id); if(!def||!campaignIsUnlocked(id)) return;
+  CUR_MISSION=def; MYTEAM=1; NET.on=false; NET.peerOn=false;
+  const csEl=document.getElementById('campaignSelect'); if(csEl) csEl.classList.add('hide');
+  start('campaign');
+}
+function renderCampaignSelect(){
+  const box=document.getElementById('campaignList'); if(!box) return;
+  box.innerHTML=CAMPAIGN_MISSIONS.map(m=>{
+    const unlocked=campaignIsUnlocked(m.id);
+    const stars=CAMPAIGN_SAVE.stars[m.id]||0;
+    const starsHtml=unlocked?('⭐'.repeat(stars)+'☆'.repeat(3-stars)):'';
+    return '<div class="campCard'+(unlocked?'':' locked')+'" data-id="'+m.id+'">'+
+      '<div class="campEmoji">'+(unlocked?m.emoji:'🔒')+'</div>'+
+      '<div class="campBody"><div class="campName">'+m.id+'. '+m.name+'</div>'+
+      '<div class="campDesc">'+(unlocked?m.desc:'أكملوا المهمة السابقة لفتحها')+'</div>'+
+      (unlocked?'<div class="campStars">'+starsHtml+'</div>':'')+'</div></div>';
+  }).join('');
+}
+function showCampaignSelect(){
+  renderCampaignSelect();
+  elStart.classList.add('hide'); elEnd.classList.add('hide');
+  document.body.classList.remove('coop','pvp');
+  const coopEl=document.getElementById('coop'); if(coopEl) coopEl.innerHTML='';
+  document.getElementById('campaignSelect').classList.remove('hide');
+}
+
 function step(dt){
   G.t+=dt; G.time-=dt;
   if(G.time<=120&&G.time>0&&!G.lateBoostAnnounced){
     G.lateBoostAnnounced=true;
-    announce('⭐ الدقيقتان الأخيرتان!','كل الصناديق تعطي بطلًا مُدمجًا (مستوى 3) الآن');
+    if(MODE!=='campaign') announce('⭐ الدقيقتان الأخيرتان!','كل الصناديق تعطي بطلًا مُدمجًا (مستوى 3) الآن');
   }
   updateEvents(dt);
-  if(G.coop) updateCoop(dt);
+  if(MODE==='campaign') updateCampaign(dt);
+  else if(G.coop) updateCoop(dt);
   if(MODE==='boss'&&G.boss&&!G.boss.dead){ updateBossAI(dt); updateBossAbilityCooldowns(dt); }
   readInput();
   updateTeams(dt);
@@ -2250,7 +2501,7 @@ function step(dt){
   respawnWild(dt);
   if(MODE==='boss'&&G.boss&&G.boss.dead&&!G.over){ G.won=true; endMatch(); }
   if(G.time<=0){
-    const inGauntlet=G.coop&&!G.pvp&&G.bossSpawned&&!G.bossDown;
+    const inGauntlet=MODE==='coop'&&G.coop&&!G.pvp&&G.bossSpawned&&!G.bossDown;
     if(inGauntlet&&!G.overtimeAnnounced){ G.overtimeAnnounced=true; announce('⏱️ وقت إضافي!','أكملوا الزعماء المتبقين — لا حد زمني الآن'); }
     G.time=0;
     if(!inGauntlet) endMatch();
@@ -2516,6 +2767,17 @@ function draw(){
     const p=Math.max(0,b.hp/b.max);
     ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(-40,-96,80,10);
     ctx.fillStyle=p>.4?'#8bc34a':'#ff5252'; ctx.fillRect(-38,-94,76*p,6);
+    ctx.restore();
+  }
+  if(MODE==='campaign'&&G.campaign&&G.campaign.reachPoint&&!G.over){
+    const rp=G.campaign.reachPoint;
+    ctx.save();
+    ctx.globalAlpha=.5+.25*Math.sin(G.t*4); ctx.strokeStyle='#42a5f5'; ctx.lineWidth=6;
+    ctx.beginPath(); ctx.arc(rp.x,rp.y,rp.r,0,TAU); ctx.stroke();
+    ctx.globalAlpha=.14; ctx.fillStyle='#42a5f5';
+    ctx.beginPath(); ctx.arc(rp.x,rp.y,rp.r,0,TAU); ctx.fill();
+    ctx.globalAlpha=1; ctx.font='800 30px system-ui'; ctx.textAlign='center';
+    ctx.fillText('🚩',rp.x,rp.y-rp.r-12);
     ctx.restore();
   }
 
@@ -3538,13 +3800,14 @@ function updateHud(dt){
   const sm=elTimer.querySelector('small');
   if(sm) sm.textContent = overtime? 'وقت إضافي!' : (G.time<=TURBO? 'توربو ×2' : 'الوقت');
   const T=ME();
-  elGems.firstChild.nodeValue=String((G.coop&&!G.pvp)?G.shared:T.gems);
+  elGems.firstChild.nodeValue=String((G.coop&&!G.pvp&&MODE!=='campaign')?G.shared:T.gems);
   const gs=elGems.querySelector('small');
-  if(gs) gs.textContent=(G.coop&&!G.pvp)?('من '+G.target):'جواهر';
+  if(gs) gs.textContent=(G.coop&&!G.pvp&&MODE!=='campaign')?('من '+G.target):'جواهر';
   dashBtn.classList.toggle('cool',T.dashCd>0);
   dashBtn.lastChild.nodeValue=T.dashCd>0?Math.ceil(T.dashCd)+'ث':'اندفاع';
   updateSquadBar(); updateBoard();
-  if(G.coop&&!G.pvp) updateCoopHud();
+  if(MODE==='campaign') updateCampaignHud();
+  else if(G.coop&&!G.pvp) updateCoopHud();
   if(MODE==='boss'){ updateBossAbilitiesUI(); updateBossDuelHud(); }
 }
 
@@ -3636,6 +3899,11 @@ function updateBoard(force){
 
 function endMatch(){
   if(G.over) return; G.over=true; running=false;
+  { const bn=document.getElementById('banner'); if(bn){ bn.classList.remove('show'); clearTimeout(bn._t); } }
+  document.getElementById('again').style.display='';
+  document.getElementById('campNext').style.display='none';
+  document.getElementById('campMap').style.display='none';
+  if(MODE==='campaign'){ endCampaignMatch(); return; }
   if(MODE==='boss'){
     if(NET.on&&NET.role==='host') netSend('end',{won:!!G.won});
     const iAmBoss=(MYTEAM===1), guestWon=!!G.won;
@@ -4056,10 +4324,12 @@ function start(mode,seed,forcedMods){
   lastMode=mode||lastMode;
   newGame(lastMode,seed,forcedMods);
   elStart.classList.add('hide'); elEnd.classList.add('hide');
-  showModIntroThenStart();
+  if(lastMode==='campaign'){ running=true; last=performance.now(); acc=0; audioOn(); }
+  else showModIntroThenStart();
 }
 document.getElementById('play').addEventListener('click',()=>{ MYTEAM=1; NET.on=false; start('solo'); });
 document.getElementById('again').addEventListener('click',()=>{
+  if(lastMode==='campaign'){ if(CUR_MISSION) startCampaignMission(CUR_MISSION.id); return; }
   if(lastMode==='coop'&&NET.on&&NET.role==='guest'){ document.getElementById('netMsg').textContent='بانتظار المضيف يبدأ جولة جديدة...';
     elEnd.classList.add('hide'); elStart.classList.remove('hide'); return; }
   if(lastMode==='coop'&&NET.on){ const s=(Math.random()*1e9)>>>0; netSend('seed',{seed:s}); start('coop',s); return; }
@@ -4067,6 +4337,14 @@ document.getElementById('again').addEventListener('click',()=>{
 });
 
 document.getElementById('playPve').addEventListener('click',()=>{ MYTEAM=1; NET.on=false; NET.peerOn=false; start('coop'); });
+document.getElementById('playCampaign').addEventListener('click',()=>{ showCampaignSelect(); });
+document.getElementById('campBack').addEventListener('click',()=>{ document.getElementById('campaignSelect').classList.add('hide'); elStart.classList.remove('hide'); });
+document.getElementById('campaignList').addEventListener('click',e=>{
+  const card=e.target.closest('.campCard'); if(!card||card.classList.contains('locked')) return;
+  startCampaignMission(Number(card.dataset.id));
+});
+document.getElementById('campNext').addEventListener('click',()=>{ if(CUR_MISSION) startCampaignMission(CUR_MISSION.id+1); });
+document.getElementById('campMap').addEventListener('click',()=>{ elEnd.classList.add('hide'); showCampaignSelect(); });
 
 const netMsg=document.getElementById('netMsg');
 
